@@ -1,12 +1,12 @@
 '==========================
-' modFondos_Reset
-' Elimina hojas y consultas generadas por el proceso de Fondos.
-' Conserva: Clientes_Fondos y hojas no generadas por el proceso.
+' modReset
+' Elimina hojas y consultas generadas por el proceso activo.
+' Se conservan las hojas que no correspondan a patrones generados.
 '==========================
 Option Explicit
 
 '======================
-' Estado Application (local al módulo)
+' Estado Application
 '======================
 Private mRstFrozen As Boolean
 Private mRstPrevScreenUpdating As Boolean
@@ -21,23 +21,23 @@ Private Sub RstAppFreeze(ByVal freeze As Boolean)
         If freeze Then
             If Not mRstFrozen Then
                 mRstPrevScreenUpdating = .ScreenUpdating
-                mRstPrevEnableEvents = .EnableEvents
-                mRstPrevDisplayAlerts = .DisplayAlerts
-                mRstPrevCalculation = .Calculation
-                mRstPrevStatusBar = .StatusBar
+                mRstPrevEnableEvents   = .EnableEvents
+                mRstPrevDisplayAlerts  = .DisplayAlerts
+                mRstPrevCalculation    = .Calculation
+                mRstPrevStatusBar      = .StatusBar
                 mRstFrozen = True
             End If
             .ScreenUpdating = False
-            .EnableEvents = False
-            .DisplayAlerts = False
-            .Calculation = xlCalculationManual
+            .EnableEvents   = False
+            .DisplayAlerts  = False
+            .Calculation    = xlCalculationManual
         Else
             If mRstFrozen Then
                 .ScreenUpdating = mRstPrevScreenUpdating
-                .EnableEvents = mRstPrevEnableEvents
-                .DisplayAlerts = mRstPrevDisplayAlerts
-                .Calculation = mRstPrevCalculation
-                .StatusBar = mRstPrevStatusBar
+                .EnableEvents   = mRstPrevEnableEvents
+                .DisplayAlerts  = mRstPrevDisplayAlerts
+                .Calculation    = mRstPrevCalculation
+                .StatusBar      = mRstPrevStatusBar
                 mRstFrozen = False
             Else
                 .StatusBar = False
@@ -55,45 +55,38 @@ Private Function EsHojaGenerada(ByVal nm As String) As Boolean
     u = UCase$(Trim$(nm))
     EsHojaGenerada = False
 
-    ' Hojas de trabajo temporales
     Select Case u
         Case "RAW_WORK", "MAIN_WORK", "ALERTAS_WORK", "AUX_WORK", "CHARTS_WORK"
             EsHojaGenerada = True
             Exit Function
     End Select
 
-    ' Patron: contiene _SUS_ o _RES_ (hojas renombradas por CrearQueryFondos)
     Dim tieneSus As Boolean, tieneRes As Boolean
     tieneSus = InStr(1, u, "_SUS_", vbBinaryCompare) > 0
-    tieneRes = InStr(1, u, "_RES_", vbBinaryCompare) > 0
+    tieneRes  = InStr(1, u, "_RES_", vbBinaryCompare) > 0
 
     If Not (tieneSus Or tieneRes) Then Exit Function
 
-    ' RAW_FONDOS_SUS_... / RAW_FONDOS_RES_...
     If Left$(u, 4) = "RAW_" Then
         EsHojaGenerada = True
         Exit Function
     End If
 
-    ' FONDOS_SUS_... / FONDOS_RES_...
     If Left$(u, 7) = "FONDOS_" Then
         EsHojaGenerada = True
         Exit Function
     End If
 
-    ' *_ALERTAS_* con _SUS_ o _RES_
     If InStr(1, u, "_ALERTAS_", vbBinaryCompare) > 0 Then
         EsHojaGenerada = True
         Exit Function
     End If
 
-    ' AUX_*_SUS_* / AUX_*_RES_*
     If Left$(u, 4) = "AUX_" Then
         EsHojaGenerada = True
         Exit Function
     End If
 
-    ' *_GRAFICOS_*_SUS_* / *_GRAFICOS_*_RES_*
     If InStr(1, u, "_GRAFICOS_", vbBinaryCompare) > 0 Then
         EsHojaGenerada = True
         Exit Function
@@ -101,17 +94,16 @@ Private Function EsHojaGenerada(ByVal nm As String) As Boolean
 End Function
 
 '======================
-' Eliminar una conexion por todos sus nombres posibles
+' Eliminar una conexion por todos sus prefijos posibles
 '======================
 Private Sub EliminarConexion(ByVal wb As Workbook, ByVal queryName As String)
     Dim candidatos As Variant
     Dim i As Long
     candidatos = Array( _
         "Consulta - " & queryName, _
-        "Query - " & queryName, _
-        "PQ_" & queryName, _
+        "Query - "    & queryName, _
+        "PQ_"         & queryName, _
         queryName)
-
     For i = LBound(candidatos) To UBound(candidatos)
         On Error Resume Next
         wb.Connections(CStr(candidatos(i))).Delete
@@ -120,17 +112,15 @@ Private Sub EliminarConexion(ByVal wb As Workbook, ByVal queryName As String)
 End Sub
 
 '======================
-' Eliminar consultas y conexiones de Fondos
+' Eliminar consultas PQ y sus conexiones
 '======================
-Private Sub EliminarConsultasFondos(ByVal wb As Workbook, ByRef log As String)
+Private Sub EliminarConsultas(ByVal wb As Workbook, ByRef log As String)
     Dim nombres As Variant
     Dim i As Long
     nombres = Array("RAW_SUS", "SUS", "SUS_ALERTAS", "RAW_RES", "RES", "RES_ALERTAS")
-
     For i = LBound(nombres) To UBound(nombres)
         Dim qn As String
         qn = CStr(nombres(i))
-
         On Error Resume Next
         wb.Queries.Item(qn).Delete
         If Err.Number = 0 Then
@@ -138,13 +128,12 @@ Private Sub EliminarConsultasFondos(ByVal wb As Workbook, ByRef log As String)
         End If
         Err.Clear
         On Error GoTo 0
-
         EliminarConexion wb, qn
     Next i
 End Sub
 
 '======================
-' Construir lista de hojas a eliminar
+' Inventario: hojas que se eliminaran
 '======================
 Private Function ListarHojasAEliminar(ByVal wb As Workbook) As Collection
     Dim col As New Collection
@@ -158,14 +147,13 @@ Private Function ListarHojasAEliminar(ByVal wb As Workbook) As Collection
 End Function
 
 '======================
-' Construir lista de consultas a eliminar
+' Inventario: consultas que se eliminaran
 '======================
 Private Function ListarConsultasAEliminar(ByVal wb As Workbook) As Collection
     Dim col As New Collection
     Dim nombres As Variant
     Dim i As Long
     nombres = Array("RAW_SUS", "SUS", "SUS_ALERTAS", "RAW_RES", "RES", "RES_ALERTAS")
-
     For i = LBound(nombres) To UBound(nombres)
         Dim qn As String
         qn = CStr(nombres(i))
@@ -180,11 +168,11 @@ Private Function ListarConsultasAEliminar(ByVal wb As Workbook) As Collection
 End Function
 
 '======================
-' Construir texto de confirmacion
+' Texto de confirmacion
 '======================
 Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consultas As Collection) As String
     Dim txt As String
-    txt = "Se eliminarán los siguientes elementos:" & vbCrLf & vbCrLf
+    txt = "Se eliminaran los siguientes elementos:" & vbCrLf & vbCrLf
 
     If hojas.Count > 0 Then
         txt = txt & "HOJAS (" & hojas.Count & "):" & vbCrLf
@@ -208,8 +196,9 @@ Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consult
         txt = txt & "CONSULTAS PQ: ninguna que eliminar." & vbCrLf
     End If
 
-    txt = txt & vbCrLf & "Se conservará: Clientes_Fondos y demás hojas no generadas por el proceso." & vbCrLf & vbCrLf
-    txt = txt & "¿Confirmar eliminación?"
+    txt = txt & vbCrLf
+    txt = txt & "Las hojas no generadas por el proceso se conservaran." & vbCrLf & vbCrLf
+    txt = txt & "Confirmar eliminacion?"
 
     ArmarTextoConfirmacion = txt
 End Function
@@ -217,30 +206,26 @@ End Function
 '======================
 ' Punto de entrada publico
 '======================
-Public Sub ResetFondos()
-    On Error GoTo EH
-
+Public Sub ResetProceso()
     Dim wb As Workbook
     Set wb = ThisWorkbook
 
-    ' Inventario previo a la confirmacion
     Dim hojas As Collection
     Dim consultas As Collection
-    Set hojas = ListarHojasAEliminar(wb)
+    Set hojas     = ListarHojasAEliminar(wb)
     Set consultas = ListarConsultasAEliminar(wb)
 
     If hojas.Count = 0 And consultas.Count = 0 Then
-        MsgBox "No se encontraron hojas ni consultas generadas por el proceso de Fondos." & vbCrLf & _
-               "No hay nada que eliminar.", vbInformation, "Reset Fondos"
+        MsgBox "No se encontraron hojas ni consultas generadas por el proceso." & vbCrLf & _
+               "No hay nada que eliminar.", vbInformation, "Reset"
         Exit Sub
     End If
 
-    ' Confirmacion
     Dim txtConf As String
     txtConf = ArmarTextoConfirmacion(hojas, consultas)
 
-    If MsgBox(txtConf, vbQuestion + vbYesNo + vbDefaultButton2, "Reset Fondos - Confirmar") = vbNo Then
-        MsgBox "Operacion cancelada. No se realizaron cambios.", vbInformation, "Reset Fondos"
+    If MsgBox(txtConf, vbQuestion + vbYesNo + vbDefaultButton2, "Reset - Confirmar") = vbNo Then
+        MsgBox "Operacion cancelada. No se realizaron cambios.", vbInformation, "Reset"
         Exit Sub
     End If
 
@@ -248,10 +233,10 @@ Public Sub ResetFondos()
 
     Dim log As String
     Dim errores As String
-    log = vbNullString
+    log     = vbNullString
     errores = vbNullString
 
-    ' Eliminar hojas
+    ' Eliminar hojas de atras hacia adelante bajo On Error Resume Next
     Dim i As Long
     For i = wb.Worksheets.Count To 1 Step -1
         Dim ws As Worksheet
@@ -260,49 +245,42 @@ Public Sub ResetFondos()
             Dim nmHoja As String
             nmHoja = ws.name
             On Error Resume Next
+            Application.DisplayAlerts = False
             ws.Delete
-            If Err.Number = 0 Then
+            Dim eNum As Long
+            Dim eDesc As String
+            eNum  = Err.Number
+            eDesc = Err.Description
+            Err.Clear
+            Application.DisplayAlerts = False
+            On Error GoTo 0
+            If eNum = 0 Then
                 log = log & "  Hoja eliminada: " & nmHoja & vbCrLf
             Else
-                errores = errores & "  No se pudo eliminar hoja '" & nmHoja & "': " & Err.Description & vbCrLf
-                Err.Clear
+                errores = errores & "  No se pudo eliminar '" & nmHoja & "': " & eDesc & vbCrLf
             End If
-            On Error GoTo EH
         End If
     Next i
 
-    ' Eliminar consultas y conexiones
-    EliminarConsultasFondos wb, log
+    EliminarConsultas wb, log
 
     RstAppFreeze False
 
-    ' Reporte final
     Dim resumen As String
     If Len(errores) = 0 Then
         resumen = "Reset completado exitosamente." & vbCrLf & vbCrLf
         If Len(log) > 0 Then
             resumen = resumen & "Elementos eliminados:" & vbCrLf & log
         Else
-            resumen = resumen & "No se eliminaron elementos (ya estaban limpios)."
+            resumen = resumen & "No habia elementos que eliminar."
         End If
-        MsgBox resumen, vbInformation, "Reset Fondos"
+        MsgBox resumen, vbInformation, "Reset"
     Else
         resumen = "Reset completado con advertencias." & vbCrLf & vbCrLf
         If Len(log) > 0 Then
             resumen = resumen & "Eliminados correctamente:" & vbCrLf & log & vbCrLf
         End If
-        resumen = resumen & "Errores encontrados:" & vbCrLf & errores
-        MsgBox resumen, vbExclamation, "Reset Fondos"
+        resumen = resumen & "Errores:" & vbCrLf & errores
+        MsgBox resumen, vbExclamation, "Reset"
     End If
-
-    Exit Sub
-
-EH:
-    Dim errDesc As String
-    errDesc = Err.Description
-    If Len(Trim$(errDesc)) = 0 Then errDesc = "(sin descripcion)"
-
-    RstAppFreeze False
-    MsgBox "ResetFondos fallo." & vbCrLf & "Error " & Err.Number & vbCrLf & errDesc, _
-           vbCritical, "Reset Fondos"
 End Sub
