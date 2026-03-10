@@ -240,8 +240,8 @@ Public Sub ResetProceso()
     Dim i As Long
     Dim ws As Worksheet
     Dim nmHoja As String
-    Dim eNum As Long
-    Dim eDesc As String
+    Dim errNum As Long
+    Dim errDesc As String
 
     Set wb = ThisWorkbook
     Set hojas = ListarHojasAEliminar(wb)
@@ -269,18 +269,18 @@ Public Sub ResetProceso()
         Set ws = wb.Worksheets(i)
         If EsHojaGenerada(ws.name) Then
             nmHoja = ws.name
-            eNum = 0
-            eDesc = vbNullString
+            errNum = 0
+            errDesc = vbNullString
             On Error Resume Next
             ws.Delete
-            eNum = Err.Number
-            eDesc = Err.Description
+            errNum = Err.Number
+            errDesc = Err.Description
             Err.Clear
             On Error GoTo 0
-            If eNum = 0 Then
+            If errNum = 0 Then
                 log = log & "  Hoja eliminada: " & nmHoja & vbCrLf
             Else
-                errores = errores & "  No se pudo eliminar '" & nmHoja & "': " & eDesc & vbCrLf
+                errores = errores & "  No se pudo eliminar '" & nmHoja & "': " & errDesc & vbCrLf
             End If
         End If
     Next i
