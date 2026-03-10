@@ -272,6 +272,7 @@ Public Sub ResetProceso()
             errNum = 0
             errDesc = vbNullString
             On Error Resume Next
+            ws.Visible = xlSheetVisible
             ws.Delete
             errNum = Err.Number
             errDesc = Err.Description
