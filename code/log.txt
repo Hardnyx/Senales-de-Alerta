@@ -1,1 +1,17 @@
+Reset completado con advertencias.
 
+Errores:
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_DIC 2024': Error
+en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_D_OLD_05':
+Error en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_D_OLD_04':
+Error en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_D_OLD_03':
+Error en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_D_OLD_02':
+Error en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_SEP_FEB_2026': Error
+en el metodo 'Delete' de objeto '_Worksheet'
+No se pudo eliminar 'AUX_FONDOS_SUS_JUL_D_OLD_01':
+Error en el metodo 'Delete' de objeto '_Worksheet'
