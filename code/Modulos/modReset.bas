@@ -1,7 +1,7 @@
 '==========================
 ' modReset
 ' Elimina hojas y consultas generadas por el proceso activo.
-' Se conservan las hojas que no correspondan a patrones generados.
+' Las hojas no generadas por el proceso se conservan.
 '==========================
 Option Explicit
 
@@ -21,23 +21,23 @@ Private Sub RstAppFreeze(ByVal freeze As Boolean)
         If freeze Then
             If Not mRstFrozen Then
                 mRstPrevScreenUpdating = .ScreenUpdating
-                mRstPrevEnableEvents   = .EnableEvents
-                mRstPrevDisplayAlerts  = .DisplayAlerts
-                mRstPrevCalculation    = .Calculation
-                mRstPrevStatusBar      = .StatusBar
+                mRstPrevEnableEvents = .EnableEvents
+                mRstPrevDisplayAlerts = .DisplayAlerts
+                mRstPrevCalculation = .Calculation
+                mRstPrevStatusBar = .StatusBar
                 mRstFrozen = True
             End If
             .ScreenUpdating = False
-            .EnableEvents   = False
-            .DisplayAlerts  = False
-            .Calculation    = xlCalculationManual
+            .EnableEvents = False
+            .DisplayAlerts = False
+            .Calculation = xlCalculationManual
         Else
             If mRstFrozen Then
                 .ScreenUpdating = mRstPrevScreenUpdating
-                .EnableEvents   = mRstPrevEnableEvents
-                .DisplayAlerts  = mRstPrevDisplayAlerts
-                .Calculation    = mRstPrevCalculation
-                .StatusBar      = mRstPrevStatusBar
+                .EnableEvents = mRstPrevEnableEvents
+                .DisplayAlerts = mRstPrevDisplayAlerts
+                .Calculation = mRstPrevCalculation
+                .StatusBar = mRstPrevStatusBar
                 mRstFrozen = False
             Else
                 .StatusBar = False
@@ -52,6 +52,9 @@ End Sub
 '======================
 Private Function EsHojaGenerada(ByVal nm As String) As Boolean
     Dim u As String
+    Dim tieneSus As Boolean
+    Dim tieneRes As Boolean
+
     u = UCase$(Trim$(nm))
     EsHojaGenerada = False
 
@@ -61,9 +64,8 @@ Private Function EsHojaGenerada(ByVal nm As String) As Boolean
             Exit Function
     End Select
 
-    Dim tieneSus As Boolean, tieneRes As Boolean
     tieneSus = InStr(1, u, "_SUS_", vbBinaryCompare) > 0
-    tieneRes  = InStr(1, u, "_RES_", vbBinaryCompare) > 0
+    tieneRes = InStr(1, u, "_RES_", vbBinaryCompare) > 0
 
     If Not (tieneSus Or tieneRes) Then Exit Function
 
@@ -97,16 +99,17 @@ End Function
 ' Eliminar una conexion por todos sus prefijos posibles
 '======================
 Private Sub EliminarConexion(ByVal wb As Workbook, ByVal queryName As String)
-    Dim candidatos As Variant
     Dim i As Long
-    candidatos = Array( _
-        "Consulta - " & queryName, _
-        "Query - "    & queryName, _
-        "PQ_"         & queryName, _
-        queryName)
-    For i = LBound(candidatos) To UBound(candidatos)
+    Dim candidatos(3) As String
+
+    candidatos(0) = "Consulta - " & queryName
+    candidatos(1) = "Query - " & queryName
+    candidatos(2) = "PQ_" & queryName
+    candidatos(3) = queryName
+
+    For i = 0 To 3
         On Error Resume Next
-        wb.Connections(CStr(candidatos(i))).Delete
+        wb.Connections(candidatos(i)).Delete
         On Error GoTo 0
     Next i
 End Sub
@@ -115,12 +118,19 @@ End Sub
 ' Eliminar consultas PQ y sus conexiones
 '======================
 Private Sub EliminarConsultas(ByVal wb As Workbook, ByRef log As String)
-    Dim nombres As Variant
     Dim i As Long
-    nombres = Array("RAW_SUS", "SUS", "SUS_ALERTAS", "RAW_RES", "RES", "RES_ALERTAS")
-    For i = LBound(nombres) To UBound(nombres)
-        Dim qn As String
-        qn = CStr(nombres(i))
+    Dim qn As String
+    Dim nombres(5) As String
+
+    nombres(0) = "RAW_SUS"
+    nombres(1) = "SUS"
+    nombres(2) = "SUS_ALERTAS"
+    nombres(3) = "RAW_RES"
+    nombres(4) = "RES"
+    nombres(5) = "RES_ALERTAS"
+
+    For i = 0 To 5
+        qn = nombres(i)
         On Error Resume Next
         wb.Queries.Item(qn).Delete
         If Err.Number = 0 Then
@@ -138,11 +148,13 @@ End Sub
 Private Function ListarHojasAEliminar(ByVal wb As Workbook) As Collection
     Dim col As New Collection
     Dim ws As Worksheet
+
     For Each ws In wb.Worksheets
         If EsHojaGenerada(ws.name) Then
             col.Add ws.name
         End If
     Next ws
+
     Set ListarHojasAEliminar = col
 End Function
 
@@ -151,19 +163,29 @@ End Function
 '======================
 Private Function ListarConsultasAEliminar(ByVal wb As Workbook) As Collection
     Dim col As New Collection
-    Dim nombres As Variant
     Dim i As Long
-    nombres = Array("RAW_SUS", "SUS", "SUS_ALERTAS", "RAW_RES", "RES", "RES_ALERTAS")
-    For i = LBound(nombres) To UBound(nombres)
-        Dim qn As String
-        qn = CStr(nombres(i))
+    Dim qn As String
+    Dim dummy As Object
+    Dim nombres(5) As String
+
+    nombres(0) = "RAW_SUS"
+    nombres(1) = "SUS"
+    nombres(2) = "SUS_ALERTAS"
+    nombres(3) = "RAW_RES"
+    nombres(4) = "RES"
+    nombres(5) = "RES_ALERTAS"
+
+    For i = 0 To 5
+        qn = nombres(i)
         On Error Resume Next
-        Dim dummy As Object
         Set dummy = wb.Queries.Item(qn)
-        If Err.Number = 0 Then col.Add qn
+        If Err.Number = 0 Then
+            col.Add qn
+        End If
         Err.Clear
         On Error GoTo 0
     Next i
+
     Set ListarConsultasAEliminar = col
 End Function
 
@@ -172,11 +194,13 @@ End Function
 '======================
 Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consultas As Collection) As String
     Dim txt As String
+    Dim nm As Variant
+    Dim qn As Variant
+
     txt = "Se eliminaran los siguientes elementos:" & vbCrLf & vbCrLf
 
     If hojas.Count > 0 Then
         txt = txt & "HOJAS (" & hojas.Count & "):" & vbCrLf
-        Dim nm As Variant
         For Each nm In hojas
             txt = txt & "  - " & CStr(nm) & vbCrLf
         Next nm
@@ -188,7 +212,6 @@ Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consult
 
     If consultas.Count > 0 Then
         txt = txt & "CONSULTAS PQ (" & consultas.Count & "):" & vbCrLf
-        Dim qn As Variant
         For Each qn In consultas
             txt = txt & "  - " & CStr(qn) & vbCrLf
         Next qn
@@ -208,11 +231,20 @@ End Function
 '======================
 Public Sub ResetProceso()
     Dim wb As Workbook
-    Set wb = ThisWorkbook
-
     Dim hojas As Collection
     Dim consultas As Collection
-    Set hojas     = ListarHojasAEliminar(wb)
+    Dim txtConf As String
+    Dim log As String
+    Dim errores As String
+    Dim resumen As String
+    Dim i As Long
+    Dim ws As Worksheet
+    Dim nmHoja As String
+    Dim eNum As Long
+    Dim eDesc As String
+
+    Set wb = ThisWorkbook
+    Set hojas = ListarHojasAEliminar(wb)
     Set consultas = ListarConsultasAEliminar(wb)
 
     If hojas.Count = 0 And consultas.Count = 0 Then
@@ -221,7 +253,6 @@ Public Sub ResetProceso()
         Exit Sub
     End If
 
-    Dim txtConf As String
     txtConf = ArmarTextoConfirmacion(hojas, consultas)
 
     If MsgBox(txtConf, vbQuestion + vbYesNo + vbDefaultButton2, "Reset - Confirmar") = vbNo Then
@@ -231,28 +262,20 @@ Public Sub ResetProceso()
 
     RstAppFreeze True
 
-    Dim log As String
-    Dim errores As String
-    log     = vbNullString
+    log = vbNullString
     errores = vbNullString
 
-    ' Eliminar hojas de atras hacia adelante bajo On Error Resume Next
-    Dim i As Long
     For i = wb.Worksheets.Count To 1 Step -1
-        Dim ws As Worksheet
         Set ws = wb.Worksheets(i)
         If EsHojaGenerada(ws.name) Then
-            Dim nmHoja As String
             nmHoja = ws.name
+            eNum = 0
+            eDesc = vbNullString
             On Error Resume Next
-            Application.DisplayAlerts = False
             ws.Delete
-            Dim eNum As Long
-            Dim eDesc As String
-            eNum  = Err.Number
+            eNum = Err.Number
             eDesc = Err.Description
             Err.Clear
-            Application.DisplayAlerts = False
             On Error GoTo 0
             If eNum = 0 Then
                 log = log & "  Hoja eliminada: " & nmHoja & vbCrLf
@@ -266,7 +289,6 @@ Public Sub ResetProceso()
 
     RstAppFreeze False
 
-    Dim resumen As String
     If Len(errores) = 0 Then
         resumen = "Reset completado exitosamente." & vbCrLf & vbCrLf
         If Len(log) > 0 Then
