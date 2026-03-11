@@ -105,7 +105,7 @@ Public Function UtilsEnsureSheet(ByVal nm As String) As Worksheet
     On Error GoTo 0
 
     If sh Is Nothing Then
-        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
         sh.name = nm
     End If
 
