@@ -199,8 +199,8 @@ Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consult
 
     txt = "Se eliminaran los siguientes elementos:" & vbCrLf & vbCrLf
 
-    If hojas.Count > 0 Then
-        txt = txt & "HOJAS (" & hojas.Count & "):" & vbCrLf
+    If hojas.count > 0 Then
+        txt = txt & "HOJAS (" & hojas.count & "):" & vbCrLf
         For Each nm In hojas
             txt = txt & "  - " & CStr(nm) & vbCrLf
         Next nm
@@ -210,8 +210,8 @@ Private Function ArmarTextoConfirmacion(ByVal hojas As Collection, ByVal consult
 
     txt = txt & vbCrLf
 
-    If consultas.Count > 0 Then
-        txt = txt & "CONSULTAS PQ (" & consultas.Count & "):" & vbCrLf
+    If consultas.count > 0 Then
+        txt = txt & "CONSULTAS PQ (" & consultas.count & "):" & vbCrLf
         For Each qn In consultas
             txt = txt & "  - " & CStr(qn) & vbCrLf
         Next qn
@@ -247,7 +247,7 @@ Public Sub ResetProceso()
     Set hojas = ListarHojasAEliminar(wb)
     Set consultas = ListarConsultasAEliminar(wb)
 
-    If hojas.Count = 0 And consultas.Count = 0 Then
+    If hojas.count = 0 And consultas.count = 0 Then
         MsgBox "No se encontraron hojas ni consultas generadas por el proceso." & vbCrLf & _
                "No hay nada que eliminar.", vbInformation, "Reset"
         Exit Sub
@@ -265,7 +265,7 @@ Public Sub ResetProceso()
     log = vbNullString
     errores = vbNullString
 
-    For i = wb.Worksheets.Count To 1 Step -1
+    For i = wb.Worksheets.count To 1 Step -1
         Set ws = wb.Worksheets(i)
         If EsHojaGenerada(ws.name) Then
             nmHoja = ws.name
