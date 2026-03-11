@@ -8,26 +8,24 @@ Private isRunning As Boolean
 Private gStage As String
 Private gSuppressEvents As Boolean
 
-' ==========================
+'==========================
 ' Constantes de UI
-' ==========================
+'==========================
 Private Const TIPO_SEL As String = "Seleccionar"
 Private Const TIPO_TRANS As String = "Transacciones"
 Private Const TIPO_CLIENTES As String = "Clientes"
 
 Private Const OP_SEL As String = "Seleccionar"
-
-' Operaciones (solo Fondos)
-Private Const OP_FON_SUSC As String = "Fondos: Suscripción"
-Private Const OP_FON_RESC As String = "Fondos: Rescate"
-Private Const OP_CLI_FON As String = "Clientes: Fondos"
-
 Private Const ORIGEN_FIXED As String = "FONDOS"
 
-' ==========================
+Private OP_FON_SUSC As String
+Private OP_FON_RESC As String
+Private OP_CLI_FON As String
+
+'==========================
 ' API de progreso (usada por modUF_PollProxy)
 ' pct: 0 a 1
-' ==========================
+'==========================
 Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
     On Error Resume Next
 
@@ -61,7 +59,6 @@ Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
         Dim wMax As Single
         wMax = lbBg.width - 2
         If wMax < 0 Then wMax = 0
-
         lbFill.width = wMax * pct
         If pct > 0 And lbFill.width < 1 Then lbFill.width = 1
     End If
@@ -82,9 +79,9 @@ Public Sub PollTick()
     DoEvents
 End Sub
 
-' ==========================
+'==========================
 ' Callbacks que espera CCtrlEvents
-' ==========================
+'==========================
 Public Sub HandleButtonClick(ByVal ctrlName As String)
     OnButtonClick ctrlName
 End Sub
@@ -93,7 +90,6 @@ Public Sub HandleComboChange(ByVal ctrlName As String)
     OnComboChanged ctrlName
 End Sub
 
-' Compatibilidad si tu CCtrlEvents antiguo llama OnButtonClick/OnComboChanged
 Public Sub OnButtonClick(ByVal ctrlName As String)
     If gSuppressEvents Then Exit Sub
 
@@ -111,14 +107,18 @@ Public Sub OnComboChanged(ByVal ctrlName As String)
         Case "cbTipoCarga"
             HandleTipoChanged
         Case "cbOperacion"
-            SetStatusOnly 0, "Operación: " & CStr(Me.Controls("cbOperacion").Value)
+            SetStatusOnly 0, "Operaci" & Chr(243) & "n: " & CStr(Me.Controls("cbOperacion").Value)
     End Select
 End Sub
 
-' ==========================
+'==========================
 ' Ciclo de vida del form
-' ==========================
+'==========================
 Private Sub UserForm_Initialize()
+    OP_FON_SUSC = "Fondos: Suscripci" & Chr(243) & "n"
+    OP_FON_RESC = "Fondos: Rescate"
+    OP_CLI_FON = "Clientes: Fondos"
+
     Set gHandlers = New Collection
 
     gSuppressEvents = True
@@ -142,9 +142,9 @@ Private Sub UserForm_Terminate()
     On Error GoTo 0
 End Sub
 
-' ==========================
+'==========================
 ' UX: Busy state
-' ==========================
+'==========================
 Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String = "")
     isRunning = running
 
@@ -156,8 +156,14 @@ Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String
         Me.Controls("cbOperacion").Enabled = Not running And Not IsPlaceholder(CStr(Me.Controls("cbTipoCarga").Value))
     End If
 
-    If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = Not running And (UCase$(Trim$(CStr(Me.Controls("cbTipoCarga").Value))) = "TRANSACCIONES")
-    If HasControl("lblMeses") Then Me.Controls("lblMeses").Enabled = Not running And (UCase$(Trim$(CStr(Me.Controls("cbTipoCarga").Value))) = "TRANSACCIONES")
+    If HasControl("txtMeses") Then
+        Me.Controls("txtMeses").Enabled = Not running And _
+            (UCase$(Trim$(CStr(Me.Controls("cbTipoCarga").Value))) = "TRANSACCIONES")
+    End If
+    If HasControl("lblMeses") Then
+        Me.Controls("lblMeses").Enabled = Not running And _
+            (UCase$(Trim$(CStr(Me.Controls("cbTipoCarga").Value))) = "TRANSACCIONES")
+    End If
 
     If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Enabled = Not running
 
@@ -172,9 +178,9 @@ Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String
     End If
 End Sub
 
-' ==========================
+'==========================
 ' UI: crear o reutilizar controles
-' ==========================
+'==========================
 Private Sub BuildOrRefreshUI()
     Me.caption = "Cargar Datos"
     Me.StartUpPosition = 1
@@ -223,7 +229,7 @@ Private Sub BuildOrRefreshUI()
     y = y + 30
 
     Set L = EnsureLabel(Me, "lblOperacion")
-    L.caption = "Tipo de operación:"
+    L.caption = "Tipo de operaci" & Chr(243) & "n:"
     L.Left = x
     L.top = y
     L.width = lblW
@@ -233,11 +239,11 @@ Private Sub BuildOrRefreshUI()
     cb.top = y - 3
     cb.width = inW + btnW
     cb.Style = fmStyleDropDownList
-    cb.ControlTipText = "Operación a cargar."
+    cb.ControlTipText = "Operaci" & Chr(243) & "n a cargar."
     y = y + 30
 
     Set L = EnsureLabel(Me, "lblMeses")
-    L.caption = "Últimos meses:"
+    L.caption = Chr(218) & "ltimos meses:"
     L.Left = x
     L.top = y
     L.width = lblW
@@ -303,7 +309,6 @@ Private Sub AttachHooksIfNeeded()
     If HasControl("cmdExaminar") Then AttachButton Me.Controls("cmdExaminar")
     If HasControl("cmdCargar") Then AttachButton Me.Controls("cmdCargar")
     If HasControl("cmdCancelar") Then AttachButton Me.Controls("cmdCancelar")
-
     If HasControl("cbTipoCarga") Then AttachCombo Me.Controls("cbTipoCarga")
     If HasControl("cbOperacion") Then AttachCombo Me.Controls("cbOperacion")
     On Error GoTo 0
@@ -362,9 +367,9 @@ Private Sub EnsureProgressControls(ByVal fr As MSForms.Frame)
     lbStatus.caption = ""
 End Sub
 
-' ==========================
-' Inicialización combos
-' ==========================
+'==========================
+' Inicializacion combos
+'==========================
 Private Sub InitCombosDefaults()
     gSuppressEvents = True
 
@@ -399,7 +404,8 @@ Private Sub InitCombosDefaults()
 End Sub
 
 Private Sub HandleTipoChanged()
-    Dim tipoCarga As String, tipoU As String
+    Dim tipoCarga As String
+    Dim tipoU As String
     tipoCarga = CStr(Me.Controls("cbTipoCarga").Value)
     tipoU = UCase$(Trim$(tipoCarga))
 
@@ -461,27 +467,25 @@ Private Function IsPlaceholder(ByVal s As String) As Boolean
     IsPlaceholder = (Len(u) = 0) Or (u = UCase$(TIPO_SEL)) Or (u = UCase$(OP_SEL))
 End Function
 
-' ==========================
+'==========================
 ' Progreso: inicio/fin
-' ==========================
+'==========================
 Private Sub BeginProgressHook()
-    On Error Resume Next
-    modUF_PollProxy.Attach Me
     ClearLog
     gStage = vbNullString
     SetStatusOnly 0, "Inicializando..."
-    On Error GoTo 0
 End Sub
 
 Private Sub EndProgressHook()
     On Error Resume Next
+    modUF_PollProxy.Detach
     Application.StatusBar = False
     On Error GoTo 0
 End Sub
 
-' ==========================
+'==========================
 ' Acciones
-' ==========================
+'==========================
 Public Sub OnExaminar()
     Dim p As String
     p = PickFileXLS("Selecciona el archivo origen")
@@ -503,7 +507,21 @@ Public Sub OnCargar()
         Exit Sub
     End If
 
-    Dim tipoCarga As String, tipoU As String
+    Dim dotPos As Long
+    dotPos = InStrRev(ruta, ".")
+    Dim ext As String
+    If dotPos > 0 Then
+        ext = LCase$(Trim$(Mid$(ruta, dotPos + 1)))
+    Else
+        ext = vbNullString
+    End If
+    If ext <> "xlsx" And ext <> "xls" And ext <> "xlsm" And ext <> "xlsb" Then
+        MsgBox "El archivo debe ser un libro de Excel (.xlsx, .xls, .xlsm, .xlsb)." & vbCrLf & ruta, vbExclamation
+        Exit Sub
+    End If
+
+    Dim tipoCarga As String
+    Dim tipoU As String
     tipoCarga = CStr(Me.Controls("cbTipoCarga").Value)
     tipoU = UCase$(Trim$(tipoCarga))
 
@@ -515,47 +533,52 @@ Public Sub OnCargar()
     Dim op As String
     op = CStr(Me.Controls("cbOperacion").Value)
     If IsPlaceholder(op) Then
-        MsgBox "Selecciona el tipo de operación.", vbExclamation
+        MsgBox "Selecciona el tipo de operaci" & Chr(243) & "n.", vbExclamation
         Exit Sub
     End If
 
+    Dim mesesVal As String
+    mesesVal = Trim$(CStr(Me.Controls("txtMeses").Value))
     Dim mesesSel As Long
-    mesesSel = CLng(val(Me.Controls("txtMeses").Value))
+    If Len(mesesVal) = 0 Or Not IsNumeric(mesesVal) Then
+        mesesSel = 6
+    Else
+        mesesSel = CLng(CDbl(mesesVal))
+    End If
     If mesesSel <= 0 Then mesesSel = 6
+
+    On Error GoTo fallo
 
     SetBusy True, "Iniciando carga..."
     BeginProgressHook
-
-    On Error GoTo fallo
 
     If tipoU = "CLIENTES" Then
         If StrComp(op, OP_CLI_FON, vbTextCompare) = 0 Then
             ProgressToCurrent 0.05, "Creando consulta de Clientes Fondos..."
             Application.Run "CrearQueryClientesFondos", ruta, True
         Else
-            MsgBox "Operación no válida para Clientes.", vbExclamation
+            MsgBox "Operaci" & Chr(243) & "n no v" & Chr(225) & "lida para Clientes.", vbExclamation
             GoTo salir
         End If
-
         ProgressToCurrent 1, "Carga completada."
         GoTo ok
     End If
 
     If tipoU = "TRANSACCIONES" Then
         If StrComp(op, OP_FON_SUSC, vbTextCompare) = 0 Then
-            ProgressToCurrent 0.05, "Creando consultas de Fondos (Suscripción)..."
-            ' IMPORTANTE: aquí va activarHoja=True como 4to parámetro
-            Application.Run "CrearQueryFondos", ruta, mesesSel, False, True, ORIGEN_FIXED, True
+            ProgressToCurrent 0.05, "Creando consultas de Fondos (Suscripci" & Chr(243) & "n)..."
+            ' showProg=False: los MsgBox intermedios de etapa se suprimen;
+            ' el progreso se muestra en el log y barra del formulario.
+            Application.Run "CrearQueryFondos", ruta, mesesSel, False, True, ORIGEN_FIXED, False
 
         ElseIf StrComp(op, OP_FON_RESC, vbTextCompare) = 0 Then
             ProgressToCurrent 0.05, "Creando consultas de Fondos (Rescate)..."
-            Application.Run "CrearQueryFondos", ruta, mesesSel, True, True, ORIGEN_FIXED, True
+            Application.Run "CrearQueryFondos", ruta, mesesSel, True, True, ORIGEN_FIXED, False
 
         Else
-            MsgBox "Operación no válida para Transacciones.", vbExclamation
+            MsgBox "Operaci" & Chr(243) & "n no v" & Chr(225) & "lida para Transacciones.", vbExclamation
             GoTo salir
         End If
-
         ProgressToCurrent 1, "Carga completada."
         GoTo ok
     End If
@@ -575,22 +598,24 @@ salir:
     Exit Sub
 
 fallo:
-    Dim eNum As Long
-    Dim eDesc As String
-    Dim eSrc As String
+    Dim errNum As Long
+    Dim errDesc As String
+    Dim errSrc As String
 
-    eNum = Err.Number
-    eDesc = Err.Description
-    eSrc = Err.Source
+    errNum = Err.Number
+    errDesc = Err.Description
+    errSrc = Err.Source
 
     EndProgressHook
     SetBusy False, "Listo."
     SetStatusOnly 0, "Error al cargar."
-    ShowErrorDetails ruta, tipoCarga, op, mesesSel, eNum, eDesc, eSrc
+    ShowErrorDetails ruta, tipoCarga, op, mesesSel, errNum, errDesc, errSrc
 End Sub
+
 Public Sub OnCancelar()
     If isRunning Then
-        If MsgBox("Hay una operación en progreso. ¿Deseas cerrar de todos modos?", vbQuestion + vbYesNo) = vbNo Then Exit Sub
+        If MsgBox("Hay una operaci" & Chr(243) & "n en progreso. " & Chr(191) & "Deseas cerrar de todos modos?", _
+                  vbQuestion + vbYesNo) = vbNo Then Exit Sub
         EndProgressHook
         Unload Me
         Exit Sub
@@ -601,33 +626,32 @@ Public Sub OnCancelar()
 End Sub
 
 Private Sub ShowErrorDetails(ByVal ruta As String, ByVal tipoCarga As String, ByVal op As String, ByVal mesesSel As Long, _
-                             ByVal eNum As Long, ByVal eDesc As String, ByVal eSrc As String)
-
+                             ByVal errNum As Long, ByVal errDesc As String, ByVal errSrc As String)
     Dim desc As String
-    desc = eDesc
-    If Len(Trim$(desc)) = 0 Then desc = "(sin descripción)"
+    desc = errDesc
+    If Len(Trim$(desc)) = 0 Then desc = "(sin descripci" & Chr(243) & "n)"
 
     Dim src As String
-    src = eSrc
+    src = errSrc
     If Len(Trim$(src)) = 0 Then src = "(sin source)"
 
     Dim msg As String
-    msg = "Error " & eNum & vbCrLf & _
+    msg = "Error " & errNum & vbCrLf & _
           desc & vbCrLf & vbCrLf & _
           "Source: " & src & vbCrLf & _
           "Estado: " & gStage & vbCrLf & _
           "Tipo: " & tipoCarga & vbCrLf & _
-          "Operación: " & op & vbCrLf & _
+          "Operaci" & Chr(243) & "n: " & op & vbCrLf & _
           "Meses: " & CStr(mesesSel) & vbCrLf & _
           "Archivo: " & ruta
 
-    AppendLogLine "ERROR " & eNum & ": " & desc
+    AppendLogLine "ERROR " & errNum & ": " & desc
     MsgBox msg, vbCritical
 End Sub
 
-' ==========================
+'==========================
 ' Status sin escribir en el log
-' ==========================
+'==========================
 Private Sub SetStatusOnly(ByVal pct As Double, ByVal msg As String)
     On Error Resume Next
     If pct < 0 Then pct = 0
@@ -665,9 +689,9 @@ Private Sub SetStatusOnly(ByVal pct As Double, ByVal msg As String)
     On Error GoTo 0
 End Sub
 
-' ==========================
+'==========================
 ' Log de progreso
-' ==========================
+'==========================
 Private Sub ClearLog()
     Dim fr As MSForms.Frame
     Set fr = GetFrameOrNothing("fraProg")
@@ -704,7 +728,7 @@ Private Sub AppendLogLine(ByVal line As String)
     parts = Split(s, vbCrLf)
     If UBound(parts) > 25 Then
         startAt = UBound(parts) - 25
-        out = ""
+        out = vbNullString
         For i = startAt To UBound(parts)
             If Len(out) > 0 Then out = out & vbCrLf
             out = out & parts(i)
@@ -717,9 +741,9 @@ Private Sub AppendLogLine(ByVal line As String)
     t.SelStart = Len(t.Text)
 End Sub
 
-' ==========================
+'==========================
 ' Helpers: Ensure controls
-' ==========================
+'==========================
 Private Function EnsureLabel(ByVal parent As Object, ByVal nm As String) As MSForms.Label
     Dim lb As MSForms.Label
     On Error Resume Next
@@ -809,4 +833,5 @@ Private Function HasControl(ByVal name As String) As Boolean
     Err.Clear
     On Error GoTo 0
 End Function
+
 
