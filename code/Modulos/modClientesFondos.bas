@@ -47,11 +47,11 @@ End Sub
 '======================
 ' Helpers
 '======================
-Private Sub MLine(ByRef buf As String, ByVal s As String)
-    If Len(buf) = 0 Then
-        buf = s
+Private Sub MLine(ByRef BUF As String, ByVal s As String)
+    If Len(BUF) = 0 Then
+        BUF = s
     Else
-        buf = buf & vbCrLf & s
+        BUF = BUF & vbCrLf & s
     End If
 End Sub
 
@@ -61,7 +61,7 @@ Private Function EnsureSheet(ByVal nm As String) As Worksheet
     Set sh = ThisWorkbook.Worksheets(nm)
     On Error GoTo 0
     If sh Is Nothing Then
-        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
         sh.name = nm
     End If
     Set EnsureSheet = sh
