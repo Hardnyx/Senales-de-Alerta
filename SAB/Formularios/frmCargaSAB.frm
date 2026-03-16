@@ -485,6 +485,7 @@ Public Sub OnCancelar()
 End Sub
 
 Public Sub OnComboChanged(ByVal Name As String)
+    MsgBox "fired: " & Name & " | val: " & CStr(Me.Controls(Name).Value)
     If gSuppressEvents Then Exit Sub
 
     If StrComp(Name, "cbOrigen", vbTextCompare) = 0 Then
