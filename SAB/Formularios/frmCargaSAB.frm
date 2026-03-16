@@ -8,6 +8,8 @@ Private isRunning       As Boolean
 Private gStage          As String
 Private gSuppressEvents As Boolean
 Private gInSync         As Boolean   ' guard de reentrada para SyncControlStates
+Private gLastTipo       As String    ' ultimo valor procesado de cbTipoCarga
+Private gLastOrg        As String    ' ultimo valor procesado de cbOrigen
 
 ' ==========================
 ' API de progreso (usada por modUF_PollProxy)
@@ -257,6 +259,8 @@ Private Sub InitCombosDefaults()
 
     ' Sincronizar estado de controles segun valor actual de cbTipoCarga.
     ' Necesario porque los eventos no disparan durante la inicializacion.
+    If HasControl("cbTipoCarga") Then gLastTipo = CStr(Me.Controls("cbTipoCarga").Value)
+    If HasControl("cbOrigen")    Then gLastOrg  = CStr(Me.Controls("cbOrigen").Value)
     SyncControlStates
 End Sub
 
@@ -492,13 +496,25 @@ End Sub
 Public Sub OnComboChanged(ByVal Name As String)
     If gSuppressEvents Then Exit Sub
 
+    Dim curVal As String
+
     Select Case Name
-        Case "cbTipoCarga", "cbOrigen"
+        Case "cbTipoCarga"
+            If HasControl("cbTipoCarga") Then curVal = CStr(Me.Controls("cbTipoCarga").Value)
+            If curVal = gLastTipo Then Exit Sub
+            gLastTipo = curVal
             SetOperacionOptionsByOrigen
             SyncControlStates
-            If HasControl("cbTipoCarga") Then
-                SetStatusOnly 0, "Tipo de dato: " & CStr(Me.Controls("cbTipoCarga").Value)
-            End If
+            SetStatusOnly 0, "Tipo de dato: " & curVal
+            ClearLog
+
+        Case "cbOrigen"
+            If HasControl("cbOrigen") Then curVal = CStr(Me.Controls("cbOrigen").Value)
+            If curVal = gLastOrg Then Exit Sub
+            gLastOrg = curVal
+            SetOperacionOptionsByOrigen
+            SyncControlStates
+            SetStatusOnly 0, "Origen cambiado."
             ClearLog
     End Select
 End Sub
