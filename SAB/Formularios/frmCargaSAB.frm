@@ -100,7 +100,6 @@ Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String
     If HasControl("cmdCargar")   Then Me.Controls("cmdCargar").Enabled   = Not running
     If HasControl("cmdExaminar") Then Me.Controls("cmdExaminar").Enabled = Not running
     If HasControl("cbTipoCarga") Then Me.Controls("cbTipoCarga").Enabled = Not running
-    If HasControl("cbOrigen")    Then Me.Controls("cbOrigen").Enabled    = Not running
     If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = Not running
     If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = Not running
     If HasControl("txtArchivo")  Then Me.Controls("txtArchivo").Enabled  = Not running
@@ -124,7 +123,7 @@ End Sub
 ' UI: crear o reutilizar controles
 ' ==========================
 Private Sub BuildOrRefreshUI()
-    Me.Caption         = "Cargar Datos"
+    Me.Caption         = "SAB - Cargar Datos"
     Me.StartUpPosition = 1
 
     Dim x As Single: x = 12
@@ -137,7 +136,7 @@ Private Sub BuildOrRefreshUI()
     Dim fr As MSForms.Frame
 
     Set l = EnsureLabel(Me, "lblTitulo")
-    l.Caption   = "Cargar datos: Transacciones / Clientes"
+    l.Caption   = "Cargar datos SAB: Transacciones / Clientes"
     l.Left      = x: l.Top = y: l.Width = 420
     l.Font.Bold = True: l.Font.Size = 12
     y = y + 26
@@ -152,23 +151,13 @@ Private Sub BuildOrRefreshUI()
     AttachCombo cb
     y = y + 28
 
-    Set l = EnsureLabel(Me, "lblOrigen")
-    l.Caption = "Origen de datos:"
-    l.Left = x: l.Top = y: l.Width = 110
-    Set cb = EnsureCombo(Me, "cbOrigen")
-    cb.Left = x + 120: cb.Top = y - 3: cb.Width = 260
-    cb.Style = fmStyleDropDownList
-    cb.ControlTipText = "Selecciona Fondos o SAB."
-    AttachCombo cb
-    y = y + 28
-
     Set l = EnsureLabel(Me, "lblOperacion")
     l.Caption = "Tipo de operacion:"
     l.Left = x: l.Top = y: l.Width = 110
     Set cb = EnsureCombo(Me, "cbOperacion")
     cb.Left = x + 120: cb.Top = y - 3: cb.Width = 260
     cb.Style = fmStyleDropDownList
-    cb.ControlTipText = "Elige el tipo de operacion segun el origen."
+    cb.ControlTipText = "Elige el tipo de operacion."
     AttachCombo cb
     y = y + 28
 
@@ -266,52 +255,30 @@ Private Sub InitCombosDefaults()
         End With
     End If
 
-    If HasControl("cbOrigen") Then
-        With Me.Controls("cbOrigen")
-            .Clear
-            .AddItem "Seleccionar"
-            .AddItem "Fondos"
-            .AddItem "SAB"
-            .ListIndex = 0
-        End With
-    End If
-
-    SetOperacionOptionsByOrigen
-
     If HasControl("txtMeses")   Then Me.Controls("txtMeses").Value   = "6"
     If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Value = ""
 
-    ' Al inicio, todo lo de transacciones bloqueado
-    If HasControl("cbOrigen")    Then Me.Controls("cbOrigen").Enabled    = False
+    ' Al inicio cbOperacion y txtMeses bloqueados
     If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
     If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = False
+
+    SetOperacionOptions
 
     gSuppressEvents = False
 End Sub
 
-Private Sub SetOperacionOptionsByOrigen()
+Private Sub SetOperacionOptions()
     If Not HasControl("cbOperacion") Then Exit Sub
-
     Dim cbOp As MSForms.ComboBox
     Set cbOp = Me.Controls("cbOperacion")
-
     cbOp.Clear
     cbOp.AddItem "Seleccionar"
-
-    Dim org As String
-    If HasControl("cbOrigen") Then
-        org = UCase$(Trim$(CStr(Me.Controls("cbOrigen").Value)))
-    End If
-
-    Select Case org
-        Case "FONDOS"
-            cbOp.AddItem "Suscripcion"
-            cbOp.AddItem "Rescate"
-        Case "SAB"
-            cbOp.AddItem "Movimiento de Caja"
-            cbOp.AddItem "Cambio de Moneda"
-    End Select
-
+    cbOp.AddItem "Movimiento de Caja - Deposito y Retiro"
+    cbOp.AddItem "Movimiento de Caja - Solo Deposito"
+    cbOp.AddItem "Movimiento de Caja - Solo Retiro"
+    cbOp.AddItem "Cambio de Moneda - Compra y Venta"
+    cbOp.AddItem "Cambio de Moneda - Solo Compra"
+    cbOp.AddItem "Cambio de Moneda - Solo Venta"
     cbOp.ListIndex = 0
 End Sub
 
@@ -351,13 +318,10 @@ Public Sub OnCargar()
 
     Dim ruta      As String
     Dim mesesSel  As Long
-    Dim origen    As String
     Dim op        As String
-    Dim esRescate As Boolean
+    Dim opU       As String
     Dim tipoCarga As String
     Dim tipoU     As String
-    Dim orgU      As String
-    Dim opU       As String
 
     ruta = CStr(Me.Controls("txtArchivo").Value)
     If Len(Trim$(ruta)) = 0 Then
@@ -386,22 +350,8 @@ Public Sub OnCargar()
     ' Caso: Clientes
     ' ==========================
     If tipoU = "CLIENTES" Then
-        origen = CStr(Me.Controls("cbOrigen").Value)
-        If IsPlaceholder(origen) Then
-            MsgBox "Selecciona el origen de datos (Fondos o SAB) para los clientes.", vbExclamation
-            GoTo salir
-        End If
-        orgU = UCase$(Trim$(origen))
-        If orgU = "SAB" Then
-            ProgressToCurrent 0.05, "Creando consulta de Clientes SAB..."
-            Application.Run "CrearQueryClientesSAB", ruta, True
-        ElseIf orgU = "FONDOS" Then
-            ProgressToCurrent 0.05, "Creando consulta de Clientes Fondos..."
-            Application.Run "CrearQueryClientesFondos", ruta, True
-        Else
-            MsgBox "Origen de datos no reconocido para clientes.", vbExclamation
-            GoTo salir
-        End If
+        ProgressToCurrent 0.05, "Creando consulta de Clientes SAB..."
+        Application.Run "CrearQueryClientesSAB", ruta, True
         ProgressToCurrent 1, "Carga completada."
         EndProgressHook
         SetBusy False, "Listo."
@@ -413,11 +363,6 @@ Public Sub OnCargar()
     ' Caso: Transacciones
     ' ==========================
     If tipoU = "TRANSACCIONES" Then
-        origen = CStr(Me.Controls("cbOrigen").Value)
-        If IsPlaceholder(origen) Then
-            MsgBox "Selecciona el origen de datos.", vbExclamation
-            GoTo salir
-        End If
         op = CStr(Me.Controls("cbOperacion").Value)
         If IsPlaceholder(op) Then
             MsgBox "Selecciona el tipo de operacion.", vbExclamation
@@ -425,32 +370,38 @@ Public Sub OnCargar()
         End If
         mesesSel = Val(Me.Controls("txtMeses").Value)
         If mesesSel <= 0 Then mesesSel = 6
-        orgU = UCase$(Trim$(origen))
-        opU  = UCase$(Trim$(op))
+        opU = UCase$(Trim$(op))
 
-        If orgU = "FONDOS" Then
-            If InStr(1, opU, "SUSCRIP", vbTextCompare) > 0 Then
-                esRescate = False
-            ElseIf InStr(1, opU, "RESCATE", vbTextCompare) > 0 Then
-                esRescate = True
+        ' --- Movimiento de Caja ---
+        If InStr(1, opU, "MOVIMIENTO", vbTextCompare) > 0 Then
+            Dim mcMode As String
+            If InStr(1, opU, "SOLO DEP", vbTextCompare) > 0 Then
+                mcMode = "SOLO_DEPOSITO"
+            ElseIf InStr(1, opU, "SOLO RET", vbTextCompare) > 0 Then
+                mcMode = "SOLO_RETIRO"
             Else
-                MsgBox "Operacion no valida para Fondos.", vbExclamation
-                GoTo salir
+                mcMode = "AMBOS"
             End If
-            ProgressToCurrent 0.05, "Creando consultas de Fondos..."
-            Application.Run "CrearQueryFondos", ruta, mesesSel, esRescate, "FONDOS", True
+            ProgressToCurrent 0.05, "Creando consultas SAB - Movimiento de Caja..."
+            Application.Run "CrearQuerySAB_MC", ruta, mesesSel, mcMode, True
 
-        ElseIf orgU = "SAB" Then
-            If InStr(1, opU, "MOVIMIENTO", vbTextCompare) > 0 Then
-                ProgressToCurrent 0.05, "Creando consultas SAB - Movimiento de Caja..."
-                Application.Run "CrearQuerySAB_MC", ruta, mesesSel, True
-            ElseIf InStr(1, opU, "CAMBIO", vbTextCompare) > 0 Then
-                ProgressToCurrent 0.05, "Creando consultas SAB - Cambio de Moneda..."
-                Application.Run "CrearQuerySAB_CM", ruta, mesesSel, True
+        ' --- Cambio de Moneda ---
+        ElseIf InStr(1, opU, "CAMBIO", vbTextCompare) > 0 Then
+            Dim cmMode As String
+            If InStr(1, opU, "SOLO COMP", vbTextCompare) > 0 Then
+                cmMode = "SOLO_COM"
+            ElseIf InStr(1, opU, "SOLO VENTA", vbTextCompare) > 0 Or _
+                   InStr(1, opU, "SOLO VEN", vbTextCompare) > 0 Then
+                cmMode = "SOLO_VEN"
             Else
-                MsgBox "Operacion no valida para SAB.", vbExclamation
-                GoTo salir
+                cmMode = "AMBOS"
             End If
+            ProgressToCurrent 0.05, "Creando consultas SAB - Cambio de Moneda..."
+            Application.Run "CrearQuerySAB_CM", ruta, mesesSel, cmMode, True
+
+        Else
+            MsgBox "Operacion no reconocida.", vbExclamation
+            GoTo salir
         End If
 
         ProgressToCurrent 1, "Carga completada."
@@ -485,41 +436,25 @@ Public Sub OnCancelar()
 End Sub
 
 Public Sub OnComboChanged(ByVal Name As String)
-    MsgBox "fired: " & Name & " | val: " & CStr(Me.Controls(Name).Value)
     If gSuppressEvents Then Exit Sub
 
-    If StrComp(Name, "cbOrigen", vbTextCompare) = 0 Then
-        gSuppressEvents = True
-        SetOperacionOptionsByOrigen
-        gSuppressEvents = False
-        SetStatusOnly 0, "Origen cambiado. Elige el tipo de operacion."
-        ClearLog
-
-    ElseIf StrComp(Name, "cbTipoCarga", vbTextCompare) = 0 Then
+    If StrComp(Name, "cbTipoCarga", vbTextCompare) = 0 Then
         Dim v    As String
         Dim tipo As String
         v = ""
         If HasControl("cbTipoCarga") Then v = CStr(Me.Controls("cbTipoCarga").Value)
         tipo = UCase$(Trim$(v))
 
-        ' Transacciones: habilitar origen, operacion y meses
         If tipo = "TRANSACCIONES" Then
-            If HasControl("cbOrigen")    Then Me.Controls("cbOrigen").Enabled    = True
             If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = True
             If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = True
-
-        ' Clientes: solo origen aplica
         ElseIf tipo = "CLIENTES" Then
-            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = True
             If HasControl("cbOperacion") Then
                 Me.Controls("cbOperacion").Enabled = False
                 Me.Controls("cbOperacion").Value   = "Seleccionar"
             End If
             If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
-
-        ' Seleccionar u otro: todo bloqueado
         Else
-            If HasControl("cbOrigen")    Then Me.Controls("cbOrigen").Enabled    = False
             If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
             If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = False
         End If
