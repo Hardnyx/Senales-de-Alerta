@@ -536,3 +536,338 @@ NextChart:
 
 fin:
 End Sub
+
+'=========================================================
+' PUBLIC: BuildGraficosCMEnHoja
+'
+' loAL  : ListObject de ALERTAS CM (SAB_CM_ALERTAS_COM o _VEN)
+' loMAIN: ListObject de detalle (SAB_CM_MAIN)
+' which : "COM" o "VEN"
+'
+' Estructura CM:
+'   loAL  columnas: Documento, TIPO_PERSONA, DESVIACION_MEDIA_%, PROMEDIO_MONTOS, NIVEL_RIESGO
+'   loMAIN columnas: Documento, Fecha, Moneda Ori, Total Neto / Monto Ori / Monto Des / Gan/Per PEN, Tipo Persona
+'
+' Biparticion NAT (izquierda) / JUR (derecha), top 5 cada una,
+' igual que modFondosGraficos.
+'=========================================================
+Public Sub BuildGraficosCMEnHoja( _
+    ByVal loAL   As ListObject, _
+    ByVal loMAIN As ListObject, _
+    ByVal which  As String)
+
+    On Error GoTo fin
+
+    If loAL Is Nothing Then Exit Sub
+    If loAL.DataBodyRange Is Nothing Then Exit Sub
+    If loMAIN Is Nothing Then Exit Sub
+    If loMAIN.DataBodyRange Is Nothing Then Exit Sub
+
+    Dim op As String: op = UCase$(Trim$(which))
+    If op <> "COM" And op <> "VEN" Then op = "COM"
+
+    If Not LOHasColumn(loAL, "DESVIACION_MEDIA_%") Then Exit Sub
+    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") Then Exit Sub
+    If Not LOHasColumn(loAL, "Documento") Then Exit Sub
+
+    Dim ws As Worksheet: Set ws = loAL.Parent
+    Dim wb As Workbook:  Set wb = ws.Parent
+
+    Dim opLabel   As String: opLabel   = IIf(op = "COM", "Compra", "Venta")
+    Dim chartPref As String: chartPref = "GF_CM_" & op & "_"
+
+    ' =========================================================
+    ' 1. Extraer candidatos NAT y JUR desde loAL
+    ' =========================================================
+    Dim iKey As Long, iDv As Long, iPm As Long, iTP As Long
+    iKey = GetColIdx(loAL, "Documento")
+    iDv  = GetColIdx(loAL, "DESVIACION_MEDIA_%")
+    iPm  = GetColIdx(loAL, "PROMEDIO_MONTOS")
+    iTP  = GetColIdx(loAL, "TIPO_PERSONA")
+
+    Const BUF As Long = 256
+    Dim nK(BUF) As String, nDv(BUF) As Double, nPm(BUF) As Double
+    Dim nTP_a(BUF) As String, nPH(BUF) As String
+    Dim jK(BUF) As String, jDv(BUF) As Double, jPm(BUF) As Double
+    Dim jTP_a(BUF) As String, jPH(BUF) As String
+    Dim nCnt As Long: nCnt = 0
+    Dim jCnt As Long: jCnt = 0
+
+    Dim arrAL As Variant
+    arrAL = loAL.DataBodyRange.Value
+
+    Dim ai As Long
+    For ai = 1 To UBound(arrAL, 1)
+        Dim sKey As String: sKey = Trim$(CStr(arrAL(ai, iKey)))
+        Dim sDv  As Double: sDv  = SafeDbl(arrAL(ai, iDv))
+        Dim sPm  As Double: sPm  = SafeDbl(arrAL(ai, iPm))
+        Dim sTP  As String
+        sTP = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
+
+        If InStr(sTP, "JUR") > 0 Or sTP = "PJ" Then
+            If jCnt < BUF Then
+                jK(jCnt)    = sKey: jDv(jCnt)   = sDv: jPm(jCnt)  = sPm
+                jTP_a(jCnt) = sTP:  jPH(jCnt)   = ""
+                jCnt = jCnt + 1
+            End If
+        Else
+            If nCnt < BUF Then
+                nK(nCnt)    = sKey: nDv(nCnt)   = sDv: nPm(nCnt)  = sPm
+                nTP_a(nCnt) = sTP:  nPH(nCnt)   = ""
+                nCnt = nCnt + 1
+            End If
+        End If
+    Next ai
+
+    SortDescN nCnt, nK, nDv, nPm, nTP_a, nPH
+    SortDescN jCnt, jK, jDv, jPm, jTP_a, jPH
+    If nCnt > MAX_CHARTS \ 2 Then nCnt = MAX_CHARTS \ 2
+    If jCnt > MAX_CHARTS \ 2 Then jCnt = MAX_CHARTS \ 2
+
+    ' =========================================================
+    ' 2. Columnas en loMAIN (deteccion por nombre canonico)
+    ' =========================================================
+    Dim iM_doc As Long, iM_fch As Long
+    Dim iM_tp  As Long, iM_mto As Long
+    iM_doc = GetColIdx(loMAIN, "Documento")
+    iM_fch = GetColIdx(loMAIN, "Fecha")
+    iM_tp  = GetColIdx(loMAIN, "Tipo Persona")
+
+    ' Monto: prioridad Total Neto > Monto Des > Monto Ori > Gan/Per PEN > Gan/Per
+    Dim mntCandidatos(4) As String
+    mntCandidatos(0) = "Total Neto"
+    mntCandidatos(1) = "Monto Des"
+    mntCandidatos(2) = "Monto Ori"
+    mntCandidatos(3) = "Gan/Per PEN"
+    mntCandidatos(4) = "Gan/Per"
+    Dim mc As Long
+    For mc = 0 To 4
+        iM_mto = GetColIdx(loMAIN, mntCandidatos(mc))
+        If iM_mto > 0 Then Exit For
+    Next mc
+
+    ' Moneda (para filtrar COM=USD, VEN=PEN)
+    Dim iM_mon As Long
+    iM_mon = GetColIdx(loMAIN, "Moneda Ori")
+
+    If iM_doc = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
+
+    Dim arrM As Variant
+    arrM = loMAIN.DataBodyRange.Value
+
+    ' =========================================================
+    ' 3. Hoja helper y limpieza de graficos anteriores
+    ' =========================================================
+    Dim wsh As Worksheet
+    Set wsh = EnsureHelperSheet(wb)
+
+    DeleteChartsByPrefix ws, chartPref
+
+    ' =========================================================
+    ' 4. Posicion a la derecha de loAL, dos columnas NAT/JUR
+    ' =========================================================
+    Dim lastALCol As Long
+    lastALCol = loAL.Range.Column + loAL.Range.Columns.Count
+
+    Dim chartLeft1   As Double: chartLeft1   = ws.Cells(1, lastALCol + 1).Left
+    Dim chartLeft2   As Double: chartLeft2   = chartLeft1 + CHART_W + 14
+    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).Top + CHART_TOP_MGN
+
+    Dim cliIdx As Long: cliIdx = 0
+
+    ' =========================================================
+    ' 5. Graficos NAT (columna izquierda)
+    ' =========================================================
+    Dim ci As Long
+    For ci = 0 To nCnt - 1
+        If nK(ci) = "" Then GoTo NextNAT_CM
+
+        Dim bStartN As Long: bStartN = 1 + cliIdx * CLI_BLOCK
+
+        Dim minDtN As Date, maxDtN As Date, rowsN As Long
+        rowsN = WriteMontoSeriesCM(wsh, bStartN, nK(ci), "NATURAL", op, _
+                                   iM_doc, iM_fch, iM_mto, iM_tp, iM_mon, arrM, _
+                                   minDtN, maxDtN)
+        If rowsN = 0 Then GoTo NextNAT_CM
+
+        Dim axMinN As Double, axMaxN As Double, nMthN As Long, mjUN As Double
+        CalcAxisBounds minDtN, maxDtN, axMinN, axMaxN, nMthN, mjUN
+        WritePromedioSeries wsh, bStartN, CDate(axMinN), CDate(axMaxN), nPm(ci)
+
+        Dim docLblN As String: docLblN = IIf(InStr(nTP_a(ci), "JUR") > 0 Or nTP_a(ci) = "PJ", "RUC", "DNI")
+        Dim titleN As String
+        titleN = "[NAT] " & opLabel & " " & docLblN & ": " & nK(ci) & _
+                 " | Desviacion: " & Format(nDv(ci), "0.00") & "%"
+
+        Dim cTopN As Double: cTopN = chartTopBase + CDbl(ci) * (CHART_H + CHART_GAP_H)
+        CreateScatterChart ws, wsh, bStartN, rowsN, nPm(ci), _
+                           axMinN, axMaxN, mjUN, _
+                           chartLeft1, cTopN, chartPref & "N" & Format(ci + 1, "00"), titleN
+        cliIdx = cliIdx + 1
+NextNAT_CM:
+    Next ci
+
+    ' =========================================================
+    ' 6. Graficos JUR (columna derecha)
+    ' =========================================================
+    Dim cj As Long
+    For cj = 0 To jCnt - 1
+        If jK(cj) = "" Then GoTo NextJUR_CM
+
+        Dim bStartJ As Long: bStartJ = 1 + cliIdx * CLI_BLOCK
+
+        Dim minDtJ As Date, maxDtJ As Date, rowsJ As Long
+        rowsJ = WriteMontoSeriesCM(wsh, bStartJ, jK(cj), "JURIDICA", op, _
+                                   iM_doc, iM_fch, iM_mto, iM_tp, iM_mon, arrM, _
+                                   minDtJ, maxDtJ)
+        If rowsJ = 0 Then GoTo NextJUR_CM
+
+        Dim axMinJ As Double, axMaxJ As Double, nMthJ As Long, mjUJ As Double
+        CalcAxisBounds minDtJ, maxDtJ, axMinJ, axMaxJ, nMthJ, mjUJ
+        WritePromedioSeries wsh, bStartJ, CDate(axMinJ), CDate(axMaxJ), jPm(cj)
+
+        Dim titleJ As String
+        titleJ = "[JUR] " & opLabel & " RUC: " & jK(cj) & _
+                 " | Desviacion: " & Format(jDv(cj), "0.00") & "%"
+
+        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cj) * (CHART_H + CHART_GAP_H)
+        CreateScatterChart ws, wsh, bStartJ, rowsJ, jPm(cj), _
+                           axMinJ, axMaxJ, mjUJ, _
+                           chartLeft2, cTopJ, chartPref & "J" & Format(cj + 1, "00"), titleJ
+        cliIdx = cliIdx + 1
+NextJUR_CM:
+    Next cj
+
+fin:
+End Sub
+
+'=========================================================
+' WriteMontoSeriesCM
+' Filtra por Documento + TIPO_PERSONA + moneda (COM=USD, VEN=PEN)
+' y agrega montos diarios en wsh cols A-B desde blockStart.
+'=========================================================
+Private Function WriteMontoSeriesCM( _
+    ByVal wsh As Worksheet, _
+    ByVal blockStart As Long, _
+    ByVal docKey As String, _
+    ByVal persona As String, _
+    ByVal op As String, _
+    ByVal iDoc As Long, _
+    ByVal iFecha As Long, _
+    ByVal iMonto As Long, _
+    ByVal iTP As Long, _
+    ByVal iMon As Long, _
+    ByRef arrM As Variant, _
+    ByRef minDtOut As Date, _
+    ByRef maxDtOut As Date) As Long
+
+    On Error GoTo errExit
+
+    Dim wantUSD As Boolean: wantUSD = (op = "COM")
+    Dim dDM As Object: Set dDM = CreateObject("Scripting.Dictionary")
+
+    Dim r As Long, nRows As Long: nRows = UBound(arrM, 1)
+
+    ' Primer pase: con filtro de moneda
+    For r = 1 To nRows
+        If NormDoc(CStr(arrM(r, iDoc))) <> docKey Then GoTo NextR_CM
+
+        If iTP > 0 Then
+            If NormPersona(CStr(arrM(r, iTP))) <> UCase$(persona) Then GoTo NextR_CM
+        End If
+
+        If iMon > 0 Then
+            Dim monStr As String: monStr = Trim$(CStr(arrM(r, iMon)))
+            Dim okMon As Boolean
+            If wantUSD Then
+                okMon = (InStr(UCase$(monStr), "USD") > 0 Or InStr(monStr, "$") > 0 Or _
+                         InStr(UCase$(monStr), "DOLAR") > 0)
+            Else
+                okMon = (InStr(UCase$(monStr), "PEN") > 0 Or InStr(monStr, "S/") > 0 Or _
+                         InStr(UCase$(monStr), "SOL") > 0)
+            End If
+            If Not okMon Then GoTo NextR_CM
+        End If
+
+        Dim rawFecha As Variant: rawFecha = arrM(r, iFecha)
+        If IsEmpty(rawFecha) Or IsNull(rawFecha) Then GoTo NextR_CM
+        If Not IsDate(rawFecha) And Not IsNumeric(rawFecha) Then GoTo NextR_CM
+
+        Dim dtVal As Date
+        On Error Resume Next: dtVal = CDate(rawFecha)
+        If Err.Number <> 0 Then Err.Clear: On Error GoTo errExit: GoTo NextR_CM
+        On Error GoTo errExit
+
+        Dim mVal As Double: mVal = SafeDbl(arrM(r, iMonto))
+        Dim dk As String:   dk   = CStr(CLng(CDbl(dtVal)))
+        If dDM.Exists(dk) Then dDM(dk) = dDM(dk) + mVal Else dDM.Add dk, mVal
+NextR_CM:
+    Next r
+
+    ' Si no hubo puntos, segundo pase sin filtro de moneda
+    If dDM.Count = 0 And iMon > 0 Then
+        For r = 1 To nRows
+            If NormDoc(CStr(arrM(r, iDoc))) <> docKey Then GoTo NextR_CM2
+            If iTP > 0 Then
+                If NormPersona(CStr(arrM(r, iTP))) <> UCase$(persona) Then GoTo NextR_CM2
+            End If
+            Dim rawF2 As Variant: rawF2 = arrM(r, iFecha)
+            If IsEmpty(rawF2) Or IsNull(rawF2) Then GoTo NextR_CM2
+            Dim dtV2 As Date
+            On Error Resume Next: dtV2 = CDate(rawF2)
+            If Err.Number <> 0 Then Err.Clear: On Error GoTo errExit: GoTo NextR_CM2
+            On Error GoTo errExit
+            Dim mv2 As Double: mv2 = SafeDbl(arrM(r, iMonto))
+            Dim dk2 As String: dk2 = CStr(CLng(CDbl(dtV2)))
+            If dDM.Exists(dk2) Then dDM(dk2) = dDM(dk2) + mv2 Else dDM.Add dk2, mv2
+NextR_CM2:
+        Next r
+    End If
+
+    If dDM.Count = 0 Then WriteMontoSeriesCM = 0: Exit Function
+
+    Dim sers() As Long
+    ReDim sers(dDM.Count - 1)
+    Dim kk As Long: kk = 0
+    Dim vk As Variant
+    For Each vk In dDM.Keys: sers(kk) = CLng(vk): kk = kk + 1: Next vk
+
+    Dim ii As Long, jj As Long, tmp As Long
+    For ii = 1 To UBound(sers)
+        tmp = sers(ii): jj = ii - 1
+        Do While jj >= 0 And sers(jj) > tmp: sers(jj + 1) = sers(jj): jj = jj - 1: Loop
+        sers(jj + 1) = tmp
+    Next ii
+
+    minDtOut = CDate(sers(0))
+    maxDtOut = CDate(sers(UBound(sers)))
+
+    Dim wr As Long: wr = blockStart
+    For ii = 0 To UBound(sers)
+        wsh.Cells(wr, 1).Value = CDate(sers(ii))
+        wsh.Cells(wr, 2).Value = dDM(CStr(sers(ii)))
+        wr = wr + 1
+    Next ii
+    wsh.Range(wsh.Cells(blockStart, 1), wsh.Cells(wr - 1, 1)).NumberFormat = "dd/mm/yyyy"
+
+    WriteMontoSeriesCM = UBound(sers) + 1
+    Exit Function
+errExit:
+    WriteMontoSeriesCM = 0
+End Function
+
+' Normaliza numero de documento (sin ceros iniciales, sin guiones)
+Private Function NormDoc(ByVal s As String) As String
+    Dim t As String: t = UCase$(Trim$(s))
+    t = Replace(t, "-", ""): t = Replace(t, ".", "")
+    Do While Left$(t, 1) = "0" And Len(t) > 1: t = Mid$(t, 2): Loop
+    NormDoc = t
+End Function
+
+' Normaliza TIPO_PERSONA a "NATURAL" o "JURIDICA"
+Private Function NormPersona(ByVal s As String) As String
+    Dim t As String: t = UCase$(Trim$(s))
+    If InStr(t, "NAT") > 0 Or t = "PN" Then NormPersona = "NATURAL": Exit Function
+    If InStr(t, "JUR") > 0 Or t = "PJ" Then NormPersona = "JURIDICA": Exit Function
+    NormPersona = t
+End Function
