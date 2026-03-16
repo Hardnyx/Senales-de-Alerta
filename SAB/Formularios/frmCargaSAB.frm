@@ -1,5 +1,5 @@
 '==========================
-' UserForm: frmCargaFondos
+' UserForm: frmCargaSAB
 '==========================
 Option Explicit
 
@@ -94,11 +94,7 @@ Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String
     If HasControl("cmdCancelar") Then
         Me.Controls("cmdCancelar").caption = IIf(running, "Cerrar", "Cancelar")
     End If
-    If running Then
-        Me.MousePointer = fmMousePointerHourGlass
-    Else
-        Me.MousePointer = fmMousePointerDefault
-    End If
+    Me.MousePointer = IIf(running, fmMousePointerHourGlass, fmMousePointerDefault)
     If Len(Trim$(statusMsg)) > 0 Then
         SetStatusOnly IIf(running, 0.01, 0), statusMsg
     End If
@@ -125,8 +121,7 @@ Private Sub BuildOrRefreshUI()
     y = y + 26
 
     Set l = EnsureLabel(Me, "lblTipoCarga")
-    l.caption = "Tipo de dato:"
-    l.Left = x: l.top = y: l.width = 110
+    l.caption = "Tipo de dato:": l.Left = x: l.top = y: l.width = 110
     Set cb = EnsureCombo(Me, "cbTipoCarga")
     cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
@@ -135,8 +130,7 @@ Private Sub BuildOrRefreshUI()
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblOrigen")
-    l.caption = "Origen de datos:"
-    l.Left = x: l.top = y: l.width = 110
+    l.caption = "Origen de datos:": l.Left = x: l.top = y: l.width = 110
     Set cb = EnsureCombo(Me, "cbOrigen")
     cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
@@ -145,8 +139,7 @@ Private Sub BuildOrRefreshUI()
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblOperacion")
-    l.caption = "Tipo de operacion:"
-    l.Left = x: l.top = y: l.width = 110
+    l.caption = "Tipo de operacion:": l.Left = x: l.top = y: l.width = 110
     Set cb = EnsureCombo(Me, "cbOperacion")
     cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
@@ -155,22 +148,19 @@ Private Sub BuildOrRefreshUI()
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblMeses")
-    l.caption = "Ultimos meses:"
-    l.Left = x: l.top = y: l.width = 110
+    l.caption = "Ultimos meses:": l.Left = x: l.top = y: l.width = 110
     Set t = EnsureTextBox(Me, "txtMeses")
     t.Left = x + 120: t.top = y - 3: t.width = 50
     t.ControlTipText = "Cantidad de meses a cargar. Por defecto 6."
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblArchivo")
-    l.caption = "Archivo origen:"
-    l.Left = x: l.top = y: l.width = 110
+    l.caption = "Archivo origen:": l.Left = x: l.top = y: l.width = 110
     Set t = EnsureTextBox(Me, "txtArchivo")
     t.Left = x + 120: t.top = y - 3: t.width = 400
     t.ControlTipText = "Ruta del archivo."
     Set b = EnsureButton(Me, "cmdExaminar")
-    b.caption = "Examinar..."
-    b.Left = x + 530: b.top = y - 5: b.width = 90
+    b.caption = "Examinar...": b.Left = x + 530: b.top = y - 5: b.width = 90
     b.ControlTipText = "Buscar archivo."
     AttachButton b
     y = y + 34
@@ -184,12 +174,10 @@ Private Sub BuildOrRefreshUI()
     Dim bOK     As MSForms.CommandButton
     Dim bCancel As MSForms.CommandButton
     Set bOK = EnsureButton(Me, "cmdCargar")
-    bOK.caption = "Cargar"
-    bOK.Left = x + 370: bOK.top = y: bOK.width = 120
+    bOK.caption = "Cargar": bOK.Left = x + 370: bOK.top = y: bOK.width = 120
     AttachButton bOK
     Set bCancel = EnsureButton(Me, "cmdCancelar")
-    bCancel.caption = "Cancelar"
-    bCancel.Left = x + 500: bCancel.top = y: bCancel.width = 120
+    bCancel.caption = "Cancelar": bCancel.Left = x + 500: bCancel.top = y: bCancel.width = 120
     AttachButton bCancel
 
     Me.width = 650
@@ -201,8 +189,7 @@ Private Sub EnsureProgressControls(ByVal fr As MSForms.Frame)
     Set txtLog = EnsureTextBox(fr, "txtProgLog")
     txtLog.Left = 10: txtLog.top = 18
     txtLog.width = fr.InsideWidth - 20: txtLog.height = 56
-    txtLog.Multiline = True
-    txtLog.Locked = True
+    txtLog.Multiline = True: txtLog.Locked = True
     txtLog.ScrollBars = fmScrollBarsVertical
     txtLog.BackColor = RGB(255, 255, 255)
 
@@ -214,24 +201,19 @@ Private Sub EnsureProgressControls(ByVal fr As MSForms.Frame)
     Set lbBg = EnsureLabel(fr, "lblBarBg")
     lbBg.Left = 10: lbBg.top = txtLog.top + txtLog.height + 10
     lbBg.width = fr.InsideWidth - 70: lbBg.height = 12
-    lbBg.BackStyle = fmBackStyleOpaque
-    lbBg.BackColor = RGB(230, 230, 230)
-    lbBg.BorderStyle = fmBorderStyleSingle
-    lbBg.caption = ""
+    lbBg.BackStyle = fmBackStyleOpaque: lbBg.BackColor = RGB(230, 230, 230)
+    lbBg.BorderStyle = fmBorderStyleSingle: lbBg.caption = ""
 
     Set lbFill = EnsureLabel(fr, "lblBar")
     lbFill.Left = lbBg.Left + 1: lbFill.top = lbBg.top + 1
     lbFill.width = 0: lbFill.height = lbBg.height - 2
-    lbFill.BackStyle = fmBackStyleOpaque
-    lbFill.BackColor = RGB(0, 120, 215)
-    lbFill.BorderStyle = fmBorderStyleNone
-    lbFill.caption = ""
+    lbFill.BackStyle = fmBackStyleOpaque: lbFill.BackColor = RGB(0, 120, 215)
+    lbFill.BorderStyle = fmBorderStyleNone: lbFill.caption = ""
 
     Set lbPct = EnsureLabel(fr, "lblPct")
     lbPct.Left = lbBg.Left + lbBg.width + 10
     lbPct.top = lbBg.top - 2: lbPct.width = 40: lbPct.height = 14
-    lbPct.caption = "0%"
-    lbPct.TextAlign = fmTextAlignRight
+    lbPct.caption = "0%": lbPct.TextAlign = fmTextAlignRight
 
     Set lbStatus = EnsureLabel(fr, "lblStatus")
     lbStatus.Left = 10: lbStatus.top = lbBg.top + lbBg.height + 8
@@ -244,6 +226,7 @@ End Sub
 ' ==========================
 Private Sub InitCombosDefaults()
     gSuppressEvents = True
+
     If HasControl("cbTipoCarga") Then
         With Me.Controls("cbTipoCarga")
             .Clear
@@ -253,6 +236,7 @@ Private Sub InitCombosDefaults()
             .ListIndex = 0
         End With
     End If
+
     If HasControl("cbOrigen") Then
         With Me.Controls("cbOrigen")
             .Clear
@@ -262,15 +246,20 @@ Private Sub InitCombosDefaults()
             .ListIndex = 0
         End With
     End If
+
     SetOperacionOptionsByOrigen
+
     If HasControl("txtMeses") Then Me.Controls("txtMeses").Value = "6"
     If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Value = ""
-    If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = False
-    If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
-    If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
+
     gSuppressEvents = False
+
+    ' Sincronizar estado de controles segun valor actual de cbTipoCarga.
+    ' Necesario porque los eventos no disparan durante la inicializacion.
+    SyncControlStates
 End Sub
 
+' Rellena cbOperacion segun origen seleccionado.
 Private Sub SetOperacionOptionsByOrigen()
     If Not HasControl("cbOperacion") Then Exit Sub
     Dim cbOp As MSForms.ComboBox
@@ -278,17 +267,58 @@ Private Sub SetOperacionOptionsByOrigen()
     cbOp.Clear
     cbOp.AddItem "Seleccionar"
     Dim org As String
-    If HasControl("cbOrigen") Then
-        org = UCase$(Trim$(CStr(Me.Controls("cbOrigen").Value)))
-    End If
+    If HasControl("cbOrigen") Then org = UCase$(Trim$(CStr(Me.Controls("cbOrigen").Value)))
     Select Case org
         Case "FONDOS"
             cbOp.AddItem "Suscripcion"
             cbOp.AddItem "Rescate"
         Case "SAB"
-            cbOp.AddItem "Tipo de Cambio"
+            cbOp.AddItem "Movimiento de Caja"
+            cbOp.AddItem "Cambio de Moneda"
     End Select
     cbOp.ListIndex = 0
+End Sub
+
+' Habilita o deshabilita controles segun el tipo de carga y origen actuales.
+' Se llama al final de InitCombosDefaults y desde OnComboChanged.
+Private Sub SyncControlStates()
+    Dim tipo As String
+    Dim org  As String
+    If HasControl("cbTipoCarga") Then tipo = UCase$(Trim$(CStr(Me.Controls("cbTipoCarga").Value)))
+    If HasControl("cbOrigen") Then org = UCase$(Trim$(CStr(Me.Controls("cbOrigen").Value)))
+
+    Select Case tipo
+        Case "TRANSACCIONES"
+            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = True
+            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = True
+            ' cbOperacion: habilitado solo si ya hay origen valido
+            If HasControl("cbOperacion") Then
+                Me.Controls("cbOperacion").Enabled = (org = "FONDOS" Or org = "SAB")
+            End If
+
+        Case "CLIENTES"
+            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = True
+            If HasControl("cbOperacion") Then
+                Me.Controls("cbOperacion").Enabled = False
+                Me.Controls("cbOperacion").Value = "Seleccionar"
+            End If
+            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
+
+        Case Else
+            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = False
+            If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
+            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
+    End Select
+
+    ' Para SAB en Transacciones: preseleccionar el primer tipo si cbOperacion
+    ' acaba de recargarse y solo tiene un origen valido posible.
+    If tipo = "TRANSACCIONES" And org = "SAB" Then
+        If HasControl("cbOperacion") Then
+            If Me.Controls("cbOperacion").ListCount > 1 Then
+                ' Dejar en "Seleccionar"; el usuario elige MC o CM
+            End If
+        End If
+    End If
 End Sub
 
 Private Function IsPlaceholder(ByVal s As String) As Boolean
@@ -337,8 +367,7 @@ Public Sub OnCargar()
 
     ruta = CStr(Me.Controls("txtArchivo").Value)
     If Len(Trim$(ruta)) = 0 Then
-        MsgBox "Selecciona un archivo origen.", vbExclamation
-        Exit Sub
+        MsgBox "Selecciona un archivo origen.", vbExclamation: Exit Sub
     End If
     If Dir(ruta, vbNormal) = "" Then
         MsgBox "El archivo no existe en la ruta indicada." & vbCrLf & ruta, vbExclamation
@@ -366,21 +395,19 @@ Public Sub OnCargar()
             GoTo salir
         End If
         orgU = UCase$(Trim$(origen))
-        If orgU = "SAB" Then
-            ProgressToCurrent 0.05, "Creando consulta de Clientes SAB..."
-            Application.Run "CrearQueryClientesSAB", ruta, True
-        ElseIf orgU = "FONDOS" Then
-            ProgressToCurrent 0.05, "Creando consulta de Clientes Fondos..."
-            Application.Run "CrearQueryClientesFondos", ruta, True
-        Else
-            MsgBox "Origen de datos no reconocido para clientes.", vbExclamation
-            GoTo salir
-        End If
+        Select Case orgU
+            Case "SAB"
+                ProgressToCurrent 0.05, "Creando consulta de Clientes SAB..."
+                Application.Run "CrearQueryClientesSAB", ruta, True
+            Case "FONDOS"
+                ProgressToCurrent 0.05, "Creando consulta de Clientes Fondos..."
+                Application.Run "CrearQueryClientesFondos", ruta, True
+            Case Else
+                MsgBox "Origen de datos no reconocido para clientes.", vbExclamation
+                GoTo salir
+        End Select
         ProgressToCurrent 1, "Carga completada."
-        EndProgressHook
-        SetBusy False, "Listo."
-        Unload Me
-        Exit Sub
+EndProgressHook:         SetBusy False, "Listo.": Unload Me: Exit Sub
     End If
 
     ' ==========================
@@ -389,41 +416,46 @@ Public Sub OnCargar()
     If tipoU = "TRANSACCIONES" Then
         origen = CStr(Me.Controls("cbOrigen").Value)
         If IsPlaceholder(origen) Then
-            MsgBox "Selecciona el origen de datos.", vbExclamation
-            GoTo salir
+            MsgBox "Selecciona el origen de datos.", vbExclamation: GoTo salir
         End If
         op = CStr(Me.Controls("cbOperacion").Value)
         If IsPlaceholder(op) Then
-            MsgBox "Selecciona el tipo de operacion.", vbExclamation
-            GoTo salir
+            MsgBox "Selecciona el tipo de operacion.", vbExclamation: GoTo salir
         End If
         mesesSel = val(Me.Controls("txtMeses").Value)
         If mesesSel <= 0 Then mesesSel = 6
         orgU = UCase$(Trim$(origen))
         opU = UCase$(Trim$(op))
 
-        If orgU = "FONDOS" Then
-            If InStr(1, opU, "SUSCRIP", vbTextCompare) > 0 Then
-                esRescate = False
-            ElseIf InStr(1, opU, "RESCATE", vbTextCompare) > 0 Then
-                esRescate = True
-            Else
-                MsgBox "Operacion no valida para Fondos.", vbExclamation
-                GoTo salir
-            End If
-            ProgressToCurrent 0.05, "Creando consultas de Fondos..."
-            Application.Run "CrearQueryFondos", ruta, mesesSel, esRescate, "FONDOS", True
+        Select Case orgU
+            Case "FONDOS"
+                If InStr(1, opU, "SUSCRIP", vbTextCompare) > 0 Then
+                    esRescate = False
+                ElseIf InStr(1, opU, "RESCATE", vbTextCompare) > 0 Then
+                    esRescate = True
+                Else
+                    MsgBox "Operacion no valida para Fondos.", vbExclamation: GoTo salir
+                End If
+                ProgressToCurrent 0.05, "Creando consultas de Fondos..."
+                Application.Run "CrearQueryFondos", ruta, mesesSel, esRescate, "FONDOS", True
 
-        ElseIf orgU = "SAB" Then
-            ProgressToCurrent 0.05, "Creando consultas de SAB - Tipo de Cambio..."
-            Application.Run "CrearQuerySAB_TipoCambio", ruta, mesesSel, "AMBOS", True
-        End If
+            Case "SAB"
+                If InStr(1, opU, "MOVIMIENTO", vbTextCompare) > 0 Then
+                    ProgressToCurrent 0.05, "Creando consultas SAB - Movimiento de Caja..."
+                    Application.Run "CrearQuerySAB_MC", ruta, mesesSel, True
+                ElseIf InStr(1, opU, "CAMBIO", vbTextCompare) > 0 Then
+                    ProgressToCurrent 0.05, "Creando consultas SAB - Cambio de Moneda..."
+                    Application.Run "CrearQuerySAB_CM", ruta, mesesSel, True
+                Else
+                    MsgBox "Operacion no valida para SAB.", vbExclamation: GoTo salir
+                End If
+
+            Case Else
+                MsgBox "Origen de datos no reconocido.", vbExclamation: GoTo salir
+        End Select
 
         ProgressToCurrent 1, "Carga completada."
-        EndProgressHook
-        SetBusy False, "Listo."
-        Unload Me
-        Exit Sub
+EndProgressHook:         SetBusy False, "Listo.": Unload Me: Exit Sub
     End If
 
 salir:
@@ -439,11 +471,9 @@ End Sub
 
 Public Sub OnCancelar()
     If isRunning Then
-        If MsgBox("Hay una operacion en progreso." & vbCrLf & "Deseas cerrar de todos modos?", _
-                  vbQuestion + vbYesNo) = vbNo Then Exit Sub
-        EndProgressHook
-        Unload Me
-        Exit Sub
+        If MsgBox("Hay una operacion en progreso." & vbCrLf & _
+                  "Deseas cerrar de todos modos?", vbQuestion + vbYesNo) = vbNo Then Exit Sub
+EndProgressHook:         Unload Me: Exit Sub
     End If
     EndProgressHook
     Unload Me
@@ -451,43 +481,24 @@ End Sub
 
 Public Sub OnComboChanged(ByVal Name As String)
     If gSuppressEvents Then Exit Sub
-    If StrComp(Name, "cbOrigen", vbTextCompare) = 0 Then
-        gSuppressEvents = True
-        SetOperacionOptionsByOrigen
-        gSuppressEvents = False
-        ' Para SAB, cbOperacion no requiere seleccion manual: preseleccionar el unico item
-        If HasControl("cbOrigen") And HasControl("cbOperacion") Then
-            If UCase$(Trim$(CStr(Me.Controls("cbOrigen").Value))) = "SAB" Then
-                Me.Controls("cbOperacion").ListIndex = 1
-            End If
-        End If
-        SetStatusOnly 0, "Origen cambiado."
-        ClearLog
 
-    ElseIf StrComp(Name, "cbTipoCarga", vbTextCompare) = 0 Then
-        Dim v    As String
-        Dim tipo As String
-        If HasControl("cbTipoCarga") Then v = CStr(Me.Controls("cbTipoCarga").Value)
-        tipo = UCase$(Trim$(v))
-        If tipo = "TRANSACCIONES" Then
-            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = True
-            If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = True
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = True
-        ElseIf tipo = "CLIENTES" Then
-            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = True
-            If HasControl("cbOperacion") Then
-                Me.Controls("cbOperacion").Enabled = False
-                Me.Controls("cbOperacion").Value = "Seleccionar"
-            End If
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
-        Else
-            If HasControl("cbOrigen") Then Me.Controls("cbOrigen").Enabled = False
-            If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
-        End If
-        SetStatusOnly 0, "Tipo de dato: " & v
-        ClearLog
-    End If
+    Select Case Name
+        Case "cbTipoCarga"
+            gSuppressEvents = True
+            SetOperacionOptionsByOrigen
+            gSuppressEvents = False
+            SyncControlStates
+            SetStatusOnly 0, "Tipo de dato: " & CStr(Me.Controls("cbTipoCarga").Value)
+            ClearLog
+
+        Case "cbOrigen"
+            gSuppressEvents = True
+            SetOperacionOptionsByOrigen
+            gSuppressEvents = False
+            SyncControlStates
+            SetStatusOnly 0, "Origen cambiado."
+            ClearLog
+    End Select
 End Sub
 
 ' ==========================
@@ -552,10 +563,10 @@ Private Sub AppendLogLine(ByVal line As String)
     s = s & line
     Dim parts()  As String
     Dim i        As Long
-    Dim startAt  As Long
     Dim out      As String
     parts = Split(s, vbCrLf)
     If UBound(parts) > 15 Then
+        Dim startAt As Long
         startAt = UBound(parts) - 15
         out = ""
         For i = startAt To UBound(parts)
@@ -574,45 +585,35 @@ End Sub
 ' ==========================
 Private Function EnsureLabel(ByVal parent As Object, ByVal nm As String) As MSForms.Label
     Dim lb As MSForms.Label
-    On Error Resume Next
-    Set lb = parent.Controls(nm)
-    On Error GoTo 0
+    On Error Resume Next: Set lb = parent.Controls(nm): On Error GoTo 0
     If lb Is Nothing Then Set lb = parent.Controls.Add("Forms.Label.1", nm, True)
     Set EnsureLabel = lb
 End Function
 
 Private Function EnsureTextBox(ByVal parent As Object, ByVal nm As String) As MSForms.TextBox
     Dim tb As MSForms.TextBox
-    On Error Resume Next
-    Set tb = parent.Controls(nm)
-    On Error GoTo 0
+    On Error Resume Next: Set tb = parent.Controls(nm): On Error GoTo 0
     If tb Is Nothing Then Set tb = parent.Controls.Add("Forms.TextBox.1", nm, True)
     Set EnsureTextBox = tb
 End Function
 
 Private Function EnsureCombo(ByVal parent As Object, ByVal nm As String) As MSForms.ComboBox
     Dim cb As MSForms.ComboBox
-    On Error Resume Next
-    Set cb = parent.Controls(nm)
-    On Error GoTo 0
+    On Error Resume Next: Set cb = parent.Controls(nm): On Error GoTo 0
     If cb Is Nothing Then Set cb = parent.Controls.Add("Forms.ComboBox.1", nm, True)
     Set EnsureCombo = cb
 End Function
 
 Private Function EnsureButton(ByVal parent As Object, ByVal nm As String) As MSForms.CommandButton
     Dim b As MSForms.CommandButton
-    On Error Resume Next
-    Set b = parent.Controls(nm)
-    On Error GoTo 0
+    On Error Resume Next: Set b = parent.Controls(nm): On Error GoTo 0
     If b Is Nothing Then Set b = parent.Controls.Add("Forms.CommandButton.1", nm, True)
     Set EnsureButton = b
 End Function
 
 Private Function EnsureFrame(ByVal parent As Object, ByVal nm As String) As MSForms.Frame
     Dim fr As MSForms.Frame
-    On Error Resume Next
-    Set fr = parent.Controls(nm)
-    On Error GoTo 0
+    On Error Resume Next: Set fr = parent.Controls(nm): On Error GoTo 0
     If fr Is Nothing Then Set fr = parent.Controls.Add("Forms.Frame.1", nm, True)
     Set EnsureFrame = fr
 End Function
