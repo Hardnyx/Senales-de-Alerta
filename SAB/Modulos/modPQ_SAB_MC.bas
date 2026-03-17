@@ -9,7 +9,7 @@ Option Explicit
 
 Private Const KEEP_PQ_QUERIES  As Boolean = True
 Private Const BUILD_GRAFICOS   As Boolean = True
-Private Const TABLE_STYLE      As String = "TableStyleLight9"
+Private Const TABLE_STYLE      As String  = "TableStyleLight9"
 
 Private mAppFrozen             As Boolean
 Private mPrevScreenUpdating    As Boolean
@@ -29,24 +29,24 @@ Private Sub SafeApp(ByVal freeze As Boolean)
         If freeze Then
             If Not mAppFrozen Then
                 mPrevScreenUpdating = .ScreenUpdating
-                mPrevEnableEvents = .EnableEvents
-                mPrevDisplayAlerts = .DisplayAlerts
-                mPrevCalculation = .Calculation
-                mPrevStatusBar = .StatusBar
-                mAppFrozen = True
+                mPrevEnableEvents   = .EnableEvents
+                mPrevDisplayAlerts  = .DisplayAlerts
+                mPrevCalculation    = .Calculation
+                mPrevStatusBar      = .StatusBar
+                mAppFrozen          = True
             End If
             .ScreenUpdating = False
-            .EnableEvents = False
-            .DisplayAlerts = False
-            .Calculation = xlCalculationManual
+            .EnableEvents   = False
+            .DisplayAlerts  = False
+            .Calculation    = xlCalculationManual
         Else
             If mAppFrozen Then
                 .ScreenUpdating = mPrevScreenUpdating
-                .EnableEvents = mPrevEnableEvents
-                .DisplayAlerts = mPrevDisplayAlerts
-                .Calculation = mPrevCalculation
-                .StatusBar = mPrevStatusBar
-                mAppFrozen = False
+                .EnableEvents   = mPrevEnableEvents
+                .DisplayAlerts  = mPrevDisplayAlerts
+                .Calculation    = mPrevCalculation
+                .StatusBar      = mPrevStatusBar
+                mAppFrozen      = False
             Else
                 .StatusBar = False
             End If
@@ -107,7 +107,7 @@ Private Function EnsureSheet(ByVal nm As String) As Worksheet
     Set sh = ThisWorkbook.Worksheets(nm)
     On Error GoTo 0
     If sh Is Nothing Then
-        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
+        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
         sh.Name = nm
     End If
     Set EnsureSheet = sh
@@ -163,7 +163,7 @@ End Sub
 
 Private Sub RenameSheetExact(ByVal sh As Worksheet, ByVal desired As String)
     Dim nm As String: nm = SanitizeSheetName(desired)
-    FreeSheetName sh.parent, nm, sh
+    FreeSheetName sh.Parent, nm, sh
     On Error Resume Next
     sh.Name = nm
     On Error GoTo 0
@@ -352,8 +352,8 @@ Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
     On Error Resume Next
     If Not lo.QueryTable Is Nothing Then
         With lo.QueryTable
-            .BackgroundQuery = False
-            .RefreshStyle = xlOverwriteCells
+            .BackgroundQuery  = False
+            .RefreshStyle     = xlOverwriteCells
             .AdjustColumnWidth = True
             .PreserveColumnInfo = True
             .Refresh BackgroundQuery:=False
@@ -531,10 +531,10 @@ Private Function M_MC_ALERTAS(ByVal which As String) As String
     Dim montoCol As String
     Dim montoColRef As String
     If op = "DEP" Then
-        montoCol = "Dep" & Chr(243) & "sito"
+        montoCol    = "Dep" & Chr(243) & "sito"
         montoColRef = "[#""Dep" & Chr(243) & "sito""]"
     Else
-        montoCol = "Retiro"
+        montoCol    = "Retiro"
         montoColRef = "[Retiro]"
     End If
 
@@ -628,44 +628,56 @@ End Function
 '======================
 Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
                              ByVal mesesSel As Long, _
+                             Optional ByVal opMode As String = "AMBOS", _
                              Optional ByVal showProgress As Boolean = False)
     On Error GoTo EH
 
-    mT0Total = Timer
+    mT0Total  = Timer
     mStageLog = vbNullString
 
     If mesesSel <= 0 Then mesesSel = 6
+    If Len(Trim$(opMode)) = 0 Then opMode = "AMBOS"
+
+    Dim makeDep As Boolean: makeDep = (UCase$(opMode) = "AMBOS" Or UCase$(opMode) = "SOLO_DEPOSITO")
+    Dim makeRet As Boolean: makeRet = (UCase$(opMode) = "AMBOS" Or UCase$(opMode) = "SOLO_RETIRO")
 
     SafeApp True
 
-    ' Upsert de las 4 consultas
-    UpsertWorkbookQuery "SAB_MC_RAW", M_MC_RAW(rutaArchivo)
+    ' Upsert de las queries necesarias
+    UpsertWorkbookQuery "SAB_MC_RAW",  M_MC_RAW(rutaArchivo)
     UpsertWorkbookQuery "SAB_MC_MAIN", M_MC_MAIN(mesesSel)
-    UpsertWorkbookQuery "SAB_MC_ALERTAS_DEP", M_MC_ALERTAS("DEP")
-    UpsertWorkbookQuery "SAB_MC_ALERTAS_RET", M_MC_ALERTAS("RET")
+    If makeDep Then UpsertWorkbookQuery "SAB_MC_ALERTAS_DEP", M_MC_ALERTAS("DEP")
+    If makeRet Then UpsertWorkbookQuery "SAB_MC_ALERTAS_RET", M_MC_ALERTAS("RET")
 
-    ' Hojas de trabajo
-    Dim shRaw   As Worksheet: Set shRaw = EnsureSheet("SAB_MC_RAW_WORK")
-    Dim shMain  As Worksheet: Set shMain = EnsureSheet("SAB_MC_MAIN_WORK")
-    Dim shAlDep As Worksheet: Set shAlDep = EnsureSheet("SAB_MC_AL_DEP_WORK")
-    Dim shAlRet As Worksheet: Set shAlRet = EnsureSheet("SAB_MC_AL_RET_WORK")
-
+    ' Hojas de trabajo RAW y MAIN (siempre)
+    Dim shRaw   As Worksheet: Set shRaw   = EnsureSheet("SAB_MC_RAW_WORK")
+    Dim shMain  As Worksheet: Set shMain  = EnsureSheet("SAB_MC_MAIN_WORK")
     ClearSheetButKeepName shRaw
     ClearSheetButKeepName shMain
-    ClearSheetButKeepName shAlDep
-    ClearSheetButKeepName shAlRet
 
-    ' Conexiones
-    Dim connRaw   As WorkbookConnection: Set connRaw = EnsurePQConnection("SAB_MC_RAW")
-    Dim connMain  As WorkbookConnection: Set connMain = EnsurePQConnection("SAB_MC_MAIN")
-    Dim connAlDep As WorkbookConnection: Set connAlDep = EnsurePQConnection("SAB_MC_ALERTAS_DEP")
-    Dim connAlRet As WorkbookConnection: Set connAlRet = EnsurePQConnection("SAB_MC_ALERTAS_RET")
+    Dim connRaw  As WorkbookConnection: Set connRaw  = EnsurePQConnection("SAB_MC_RAW")
+    Dim connMain As WorkbookConnection: Set connMain = EnsurePQConnection("SAB_MC_MAIN")
 
-    ' Carga y refresco
-    Dim loRaw   As ListObject: Set loRaw = EnsureStage(shRaw, "SAB_MC_RAW", connRaw, "RAW", showProgress)
-    Dim loMain  As ListObject: Set loMain = EnsureStage(shMain, "SAB_MC_MAIN", connMain, "MAIN", showProgress)
-    Dim loAlDep As ListObject: Set loAlDep = EnsureStage(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep, "AL_DEP", showProgress)
-    Dim loAlRet As ListObject: Set loAlRet = EnsureStage(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet, "AL_RET", showProgress)
+    Dim loRaw  As ListObject: Set loRaw  = EnsureStage(shRaw,  "SAB_MC_RAW",  connRaw,  "RAW",  showProgress)
+    Dim loMain As ListObject: Set loMain = EnsureStage(shMain, "SAB_MC_MAIN", connMain, "MAIN", showProgress)
+
+    ' Hojas de alertas segun opMode
+    Dim shAlDep As Worksheet, shAlRet As Worksheet
+    Dim loAlDep As ListObject, loAlRet As ListObject
+
+    If makeDep Then
+        Set shAlDep = EnsureSheet("SAB_MC_AL_DEP_WORK")
+        ClearSheetButKeepName shAlDep
+        Dim connAlDep As WorkbookConnection: Set connAlDep = EnsurePQConnection("SAB_MC_ALERTAS_DEP")
+        Set loAlDep = EnsureStage(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep, "AL_DEP", showProgress)
+    End If
+
+    If makeRet Then
+        Set shAlRet = EnsureSheet("SAB_MC_AL_RET_WORK")
+        ClearSheetButKeepName shAlRet
+        Dim connAlRet As WorkbookConnection: Set connAlRet = EnsurePQConnection("SAB_MC_ALERTAS_RET")
+        Set loAlRet = EnsureStage(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet, "AL_RET", showProgress)
+    End If
 
     ' Sufijo de periodo desde loMain
     Dim minD As Date, maxD As Date, gotDates As Boolean
@@ -682,49 +694,56 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     End If
     suf = MesAbrevES(ini) & "_" & MesAbrevES(fin) & "_" & Year(fin)
 
-    ' Nombres finales
-    Dim nmRaw   As String: nmRaw = SanitizeSheetName("SAB_MC_RAW_" & suf)
-    Dim nmMain  As String: nmMain = SanitizeSheetName("SAB_MC_" & suf)
-    Dim nmAlDep As String: nmAlDep = SanitizeSheetName("SAB_MC_AL_DEP_" & suf)
-    Dim nmAlRet As String: nmAlRet = SanitizeSheetName("SAB_MC_AL_RET_" & suf)
+    ' Renombrar RAW y MAIN
+    Dim nmRaw  As String: nmRaw  = SanitizeSheetName("SAB_MC_RAW_" & suf)
+    Dim nmMain As String: nmMain = SanitizeSheetName("SAB_MC_"     & suf)
 
     DeleteSheetIfExists ThisWorkbook, nmRaw
     DeleteSheetIfExists ThisWorkbook, nmMain
-    DeleteSheetIfExists ThisWorkbook, nmAlDep
-    DeleteSheetIfExists ThisWorkbook, nmAlRet
-
-    FreeSheetName ThisWorkbook, nmRaw, shRaw
+    FreeSheetName ThisWorkbook, nmRaw,  shRaw
     FreeSheetName ThisWorkbook, nmMain, shMain
-    FreeSheetName ThisWorkbook, nmAlDep, shAlDep
-    FreeSheetName ThisWorkbook, nmAlRet, shAlRet
-
     DeleteAllTablesByName ThisWorkbook, nmRaw
     DeleteAllTablesByName ThisWorkbook, nmMain
-    DeleteAllTablesByName ThisWorkbook, nmAlDep
-    DeleteAllTablesByName ThisWorkbook, nmAlRet
-
-    SetTableNameSafe ThisWorkbook, loRaw, nmRaw
+    SetTableNameSafe ThisWorkbook, loRaw,  nmRaw
     SetTableNameSafe ThisWorkbook, loMain, nmMain
-    SetTableNameSafe ThisWorkbook, loAlDep, nmAlDep
-    SetTableNameSafe ThisWorkbook, loAlRet, nmAlRet
-
-    RenameSheetExact shRaw, nmRaw
+    RenameSheetExact shRaw,  nmRaw
     RenameSheetExact shMain, nmMain
-    RenameSheetExact shAlDep, nmAlDep
-    RenameSheetExact shAlRet, nmAlRet
+
+    ' Renombrar alertas segun opMode
+    If makeDep Then
+        Dim nmAlDep As String: nmAlDep = SanitizeSheetName("SAB_MC_AL_DEP_" & suf)
+        DeleteSheetIfExists ThisWorkbook, nmAlDep
+        FreeSheetName ThisWorkbook, nmAlDep, shAlDep
+        DeleteAllTablesByName ThisWorkbook, nmAlDep
+        SetTableNameSafe ThisWorkbook, loAlDep, nmAlDep
+        RenameSheetExact shAlDep, nmAlDep
+    End If
+
+    If makeRet Then
+        Dim nmAlRet As String: nmAlRet = SanitizeSheetName("SAB_MC_AL_RET_" & suf)
+        DeleteSheetIfExists ThisWorkbook, nmAlRet
+        FreeSheetName ThisWorkbook, nmAlRet, shAlRet
+        DeleteAllTablesByName ThisWorkbook, nmAlRet
+        SetTableNameSafe ThisWorkbook, loAlRet, nmAlRet
+        RenameSheetExact shAlRet, nmAlRet
+    End If
 
     ' Graficos de alertas
     If BUILD_GRAFICOS Then
-        modSABGraficos.BuildGraficosAlertasEnHoja loAlDep, loMain, "DEP", suf
-        modSABGraficos.BuildGraficosAlertasEnHoja loAlRet, loMain, "RET", suf
+        If makeDep And Not loAlDep Is Nothing Then
+            modSABGraficos.BuildGraficosAlertasEnHoja loAlDep, loMain, "DEP", suf
+        End If
+        If makeRet And Not loAlRet Is Nothing Then
+            modSABGraficos.BuildGraficosAlertasEnHoja loAlRet, loMain, "RET", suf
+        End If
     End If
 
     ' Limpiar queries si corresponde
     If Not KEEP_PQ_QUERIES Then
         DeleteQueryAndConnection "SAB_MC_RAW"
         DeleteQueryAndConnection "SAB_MC_MAIN"
-        DeleteQueryAndConnection "SAB_MC_ALERTAS_DEP"
-        DeleteQueryAndConnection "SAB_MC_ALERTAS_RET"
+        If makeDep Then DeleteQueryAndConnection "SAB_MC_ALERTAS_DEP"
+        If makeRet Then DeleteQueryAndConnection "SAB_MC_ALERTAS_RET"
     End If
 
     SafeApp False
@@ -747,5 +766,3 @@ EH:
     SafeApp False
     MsgBox "Error en CrearQuerySAB_MC: " & Err.Number & " - " & Err.Description, vbCritical
 End Sub
-
-
