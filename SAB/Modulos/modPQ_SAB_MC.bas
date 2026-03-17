@@ -339,27 +339,20 @@ Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
         On Error Resume Next: lo.Delete: On Error GoTo 0
         Set lo = Nothing
     End If
-    ' Crear tabla vinculada a la conexion
+    ' Crear tabla vinculada a la conexion.
+    ' NO se hace Refresh aqui: RefreshConnectionSync ya cargo la data antes de llamar
+    ' a esta funcion. Un segundo Refresh duplicaria el tiempo de carga.
     Set lo = sh.ListObjects.Add(SourceType:=xlSrcExternal, Source:=conn, _
                                 LinkSource:=True, XlListObjectHasHeaders:=xlYes, _
                                 Destination:=sh.Range("A1"))
     On Error Resume Next
     lo.Name = loName
-    On Error GoTo 0
-    ' Refrescar la QueryTable con BackgroundQuery=False
-    On Error Resume Next
     If Not lo.QueryTable Is Nothing Then
-        With lo.QueryTable
-            .BackgroundQuery   = False
-            .RefreshStyle      = xlOverwriteCells
-            .AdjustColumnWidth = True
-            .PreserveColumnInfo = True
-            .Refresh BackgroundQuery:=False
-        End With
+        lo.QueryTable.BackgroundQuery  = False
+        lo.QueryTable.RefreshStyle     = xlOverwriteCells
+        lo.QueryTable.AdjustColumnWidth = True
+        lo.QueryTable.PreserveColumnInfo = True
     End If
-    Application.CalculateUntilAsyncQueriesDone
-    On Error GoTo 0
-    On Error Resume Next
     lo.TableStyle = TABLE_STYLE
     On Error GoTo 0
     Set EnsureTableForConnection = lo
@@ -674,17 +667,28 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     End If
 
     ' Paso 1: refrescar TODAS las conexiones en orden (como en el original)
+    Dim tStage As Double
+    tStage = Timer
     Application.StatusBar = "Cargando RAW..."
     RefreshConnectionSync connRaw
+    AppendStageLog "RAW", ElapsedSec(tStage)
+
+    tStage = Timer
     Application.StatusBar = "Cargando MAIN..."
     RefreshConnectionSync connMain
+    AppendStageLog "MAIN", ElapsedSec(tStage)
+
     If makeDep Then
+        tStage = Timer
         Application.StatusBar = "Cargando ALERTAS DEP..."
         RefreshConnectionSync connAlDep
+        AppendStageLog "AL_DEP", ElapsedSec(tStage)
     End If
     If makeRet Then
+        tStage = Timer
         Application.StatusBar = "Cargando ALERTAS RET..."
         RefreshConnectionSync connAlRet
+        AppendStageLog "AL_RET", ElapsedSec(tStage)
     End If
 
     ' Paso 2: crear TODAS las tablas vinculadas (datos ya cargados en PQ)
