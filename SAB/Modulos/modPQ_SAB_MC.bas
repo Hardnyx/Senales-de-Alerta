@@ -298,24 +298,17 @@ Private Sub UpsertWorkbookQuery(ByVal qName As String, ByVal mFormula As String)
 End Sub
 
 Private Function EnsurePQConnection(ByVal queryName As String) As WorkbookConnection
-    Dim wb As Workbook: Set wb = ThisWorkbook
     Dim conn As WorkbookConnection
+    Dim connName As String: connName = "PQ_" & queryName
     On Error Resume Next
-    Set conn = wb.Connections("Consulta - " & queryName)
-    If conn Is Nothing Then Set conn = wb.Connections("Query - " & queryName)
-    If conn Is Nothing Then Set conn = wb.Connections("PQ_" & queryName)
-    If conn Is Nothing Then Set conn = wb.Connections(queryName)
+    Set conn = ThisWorkbook.Connections(connName)
     On Error GoTo 0
     If conn Is Nothing Then
-        Dim cs As String
-        cs = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;" & _
-             "Location=" & queryName & ";Extended Properties="""""""
+        Dim cs  As String: cs  = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=" & queryName & ";Extended Properties=" & Chr$(34) & Chr$(34)
+        Dim cmd As String: cmd = "SELECT * FROM [" & queryName & "]"
         On Error Resume Next
-        Set conn = wb.Connections.Add2( _
-            Name:="Consulta - " & queryName, Description:="", _
-            ConnectionString:=cs, CommandText:=queryName, _
-            lCmdtype:=xlCmdSql, CreateModelConnection:=False, _
-            ImportRelationships:=False)
+        Set conn = ThisWorkbook.Connections.Add2(connName, "", cs, cmd, xlCmdSql)
+        If conn Is Nothing Then Set conn = ThisWorkbook.Connections.Add(connName, "", cs, cmd, xlCmdSql)
         On Error GoTo 0
     End If
     Set EnsurePQConnection = conn
@@ -335,25 +328,30 @@ Private Sub RefreshConnectionSync(ByVal conn As WorkbookConnection)
 End Sub
 
 Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
-                                           ByVal conn As WorkbookConnection, _
-                                           ByVal loName As String) As ListObject
+                                           ByVal loName As String, _
+                                           ByVal conn As WorkbookConnection) As ListObject
     Dim lo As ListObject
+    ' Borrar tabla previa si existe (igual que en modPQ_SAB_TipoCambio)
     On Error Resume Next
     Set lo = sh.ListObjects(loName)
     On Error GoTo 0
-    If lo Is Nothing Then
-        Set lo = sh.ListObjects.Add(SourceType:=xlSrcExternal, Source:=conn, _
-                                    LinkSource:=True, XlListObjectHasHeaders:=xlYes, _
-                                    Destination:=sh.Range("A1"))
-        On Error Resume Next
-        lo.Name = loName
-        On Error GoTo 0
+    If Not lo Is Nothing Then
+        On Error Resume Next: lo.Delete: On Error GoTo 0
+        Set lo = Nothing
     End If
+    ' Crear tabla vinculada a la conexion
+    Set lo = sh.ListObjects.Add(SourceType:=xlSrcExternal, Source:=conn, _
+                                LinkSource:=True, XlListObjectHasHeaders:=xlYes, _
+                                Destination:=sh.Range("A1"))
+    On Error Resume Next
+    lo.Name = loName
+    On Error GoTo 0
+    ' Refrescar la QueryTable con BackgroundQuery=False
     On Error Resume Next
     If Not lo.QueryTable Is Nothing Then
         With lo.QueryTable
-            .BackgroundQuery  = False
-            .RefreshStyle     = xlOverwriteCells
+            .BackgroundQuery   = False
+            .RefreshStyle      = xlOverwriteCells
             .AdjustColumnWidth = True
             .PreserveColumnInfo = True
             .Refresh BackgroundQuery:=False
@@ -374,9 +372,10 @@ Private Function EnsureStage(ByVal sh As Worksheet, ByVal loName As String, _
     Dim t0 As Double: t0 = Timer
     StatusStage stageLabel, t0
     DoEvents
-    Dim lo As ListObject
-    Set lo = EnsureTableForConnection(sh, conn, loName)
+    ' Refrescar conexion ANTES de crear la tabla (orden del original)
     RefreshConnectionSync conn
+    Dim lo As ListObject
+    Set lo = EnsureTableForConnection(sh, loName, conn)
     Dim secStage As Double: secStage = ElapsedSec(t0)
     Application.StatusBar = stageLabel & " listo. " & Format(secStage, "0.0") & " s"
     AppendStageLog stageLabel, secStage
@@ -649,35 +648,53 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     If makeDep Then UpsertWorkbookQuery "SAB_MC_ALERTAS_DEP", M_MC_ALERTAS("DEP")
     If makeRet Then UpsertWorkbookQuery "SAB_MC_ALERTAS_RET", M_MC_ALERTAS("RET")
 
-    ' Hojas de trabajo RAW y MAIN (siempre)
+    ' Hojas de trabajo
     Dim shRaw   As Worksheet: Set shRaw   = EnsureSheet("SAB_MC_RAW_WORK")
     Dim shMain  As Worksheet: Set shMain  = EnsureSheet("SAB_MC_MAIN_WORK")
+    Dim shAlDep As Worksheet
+    Dim shAlRet As Worksheet
     ClearSheetButKeepName shRaw
     ClearSheetButKeepName shMain
 
+    ' Conexiones
     Dim connRaw  As WorkbookConnection: Set connRaw  = EnsurePQConnection("SAB_MC_RAW")
     Dim connMain As WorkbookConnection: Set connMain = EnsurePQConnection("SAB_MC_MAIN")
-
-    Dim loRaw  As ListObject: Set loRaw  = EnsureStage(shRaw,  "SAB_MC_RAW",  connRaw,  "RAW",  showProgress)
-    Dim loMain As ListObject: Set loMain = EnsureStage(shMain, "SAB_MC_MAIN", connMain, "MAIN", showProgress)
-
-    ' Hojas de alertas segun opMode
-    Dim shAlDep As Worksheet, shAlRet As Worksheet
-    Dim loAlDep As ListObject, loAlRet As ListObject
+    Dim connAlDep As WorkbookConnection
+    Dim connAlRet As WorkbookConnection
 
     If makeDep Then
         Set shAlDep = EnsureSheet("SAB_MC_AL_DEP_WORK")
         ClearSheetButKeepName shAlDep
-        Dim connAlDep As WorkbookConnection: Set connAlDep = EnsurePQConnection("SAB_MC_ALERTAS_DEP")
-        Set loAlDep = EnsureStage(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep, "AL_DEP", showProgress)
+        Set connAlDep = EnsurePQConnection("SAB_MC_ALERTAS_DEP")
     End If
-
     If makeRet Then
         Set shAlRet = EnsureSheet("SAB_MC_AL_RET_WORK")
         ClearSheetButKeepName shAlRet
-        Dim connAlRet As WorkbookConnection: Set connAlRet = EnsurePQConnection("SAB_MC_ALERTAS_RET")
-        Set loAlRet = EnsureStage(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet, "AL_RET", showProgress)
+        Set connAlRet = EnsurePQConnection("SAB_MC_ALERTAS_RET")
     End If
+
+    ' Paso 1: refrescar TODAS las conexiones en orden (como en el original)
+    Application.StatusBar = "Cargando RAW..."
+    RefreshConnectionSync connRaw
+    Application.StatusBar = "Cargando MAIN..."
+    RefreshConnectionSync connMain
+    If makeDep Then
+        Application.StatusBar = "Cargando ALERTAS DEP..."
+        RefreshConnectionSync connAlDep
+    End If
+    If makeRet Then
+        Application.StatusBar = "Cargando ALERTAS RET..."
+        RefreshConnectionSync connAlRet
+    End If
+
+    ' Paso 2: crear TODAS las tablas vinculadas (datos ya cargados en PQ)
+    Application.StatusBar = "Creando tablas..."
+    Dim loRaw   As ListObject: Set loRaw   = EnsureTableForConnection(shRaw,  "SAB_MC_RAW",  connRaw)
+    Dim loMain  As ListObject: Set loMain  = EnsureTableForConnection(shMain, "SAB_MC_MAIN", connMain)
+    Dim loAlDep As ListObject
+    Dim loAlRet As ListObject
+    If makeDep Then Set loAlDep = EnsureTableForConnection(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep)
+    If makeRet Then Set loAlRet = EnsureTableForConnection(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet)
 
     ' Sufijo de periodo desde loMain
     Dim minD As Date, maxD As Date, gotDates As Boolean
