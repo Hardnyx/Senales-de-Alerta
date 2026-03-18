@@ -676,12 +676,12 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     Dim tStage As Double
     tStage = Timer
     Application.StatusBar = "Cargando RAW..."
-    Dim loRaw   As ListObject: Set loRaw   = EnsureTableForConnection(shRaw,  connRaw,  "SAB_MC_RAW")
+    Dim loRaw   As ListObject: Set loRaw   = EnsureTableForConnection(shRaw,  "SAB_MC_RAW",         connRaw)
     AppendStageLog "RAW", ElapsedSec(tStage)
 
     tStage = Timer
     Application.StatusBar = "Cargando MAIN..."
-    Dim loMain  As ListObject: Set loMain  = EnsureTableForConnection(shMain, connMain, "SAB_MC_MAIN")
+    Dim loMain  As ListObject: Set loMain  = EnsureTableForConnection(shMain, "SAB_MC_MAIN",        connMain)
     AppendStageLog "MAIN", ElapsedSec(tStage)
 
     Dim loAlDep As ListObject
@@ -690,14 +690,14 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     If makeDep Then
         tStage = Timer
         Application.StatusBar = "Cargando ALERTAS DEP..."
-        Set loAlDep = EnsureTableForConnection(shAlDep, connAlDep, "SAB_MC_ALERTAS_DEP")
+        Set loAlDep = EnsureTableForConnection(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep)
         AppendStageLog "AL_DEP", ElapsedSec(tStage)
     End If
 
     If makeRet Then
         tStage = Timer
         Application.StatusBar = "Cargando ALERTAS RET..."
-        Set loAlRet = EnsureTableForConnection(shAlRet, connAlRet, "SAB_MC_ALERTAS_RET")
+        Set loAlRet = EnsureTableForConnection(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet)
         AppendStageLog "AL_RET", ElapsedSec(tStage)
     End If
 
