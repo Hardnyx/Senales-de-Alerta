@@ -340,19 +340,25 @@ Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
         Set lo = Nothing
     End If
     ' Crear tabla vinculada a la conexion.
-    ' NO se hace Refresh aqui: RefreshConnectionSync ya cargo la data antes de llamar
-    ' a esta funcion. Un segundo Refresh duplicaria el tiempo de carga.
     Set lo = sh.ListObjects.Add(SourceType:=xlSrcExternal, Source:=conn, _
                                 LinkSource:=True, XlListObjectHasHeaders:=xlYes, _
                                 Destination:=sh.Range("A1"))
     On Error Resume Next
     lo.Name = loName
+    On Error GoTo 0
+    On Error Resume Next
     If Not lo.QueryTable Is Nothing Then
-        lo.QueryTable.BackgroundQuery  = False
-        lo.QueryTable.RefreshStyle     = xlOverwriteCells
-        lo.QueryTable.AdjustColumnWidth = True
-        lo.QueryTable.PreserveColumnInfo = True
+        With lo.QueryTable
+            .BackgroundQuery   = False
+            .RefreshStyle      = xlOverwriteCells
+            .AdjustColumnWidth = True
+            .PreserveColumnInfo = True
+            .Refresh BackgroundQuery:=False
+        End With
     End If
+    Application.CalculateUntilAsyncQueriesDone
+    On Error GoTo 0
+    On Error Resume Next
     lo.TableStyle = TABLE_STYLE
     On Error GoTo 0
     Set EnsureTableForConnection = lo
@@ -666,39 +672,34 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
         Set connAlRet = EnsurePQConnection("SAB_MC_ALERTAS_RET")
     End If
 
-    ' Paso 1: refrescar TODAS las conexiones en orden (como en el original)
+    ' Crear tablas: EnsureTableForConnection hace el refresh completo internamente
     Dim tStage As Double
     tStage = Timer
     Application.StatusBar = "Cargando RAW..."
-    RefreshConnectionSync connRaw
+    Dim loRaw   As ListObject: Set loRaw   = EnsureTableForConnection(shRaw,  connRaw,  "SAB_MC_RAW")
     AppendStageLog "RAW", ElapsedSec(tStage)
 
     tStage = Timer
     Application.StatusBar = "Cargando MAIN..."
-    RefreshConnectionSync connMain
+    Dim loMain  As ListObject: Set loMain  = EnsureTableForConnection(shMain, connMain, "SAB_MC_MAIN")
     AppendStageLog "MAIN", ElapsedSec(tStage)
+
+    Dim loAlDep As ListObject
+    Dim loAlRet As ListObject
 
     If makeDep Then
         tStage = Timer
         Application.StatusBar = "Cargando ALERTAS DEP..."
-        RefreshConnectionSync connAlDep
+        Set loAlDep = EnsureTableForConnection(shAlDep, connAlDep, "SAB_MC_ALERTAS_DEP")
         AppendStageLog "AL_DEP", ElapsedSec(tStage)
     End If
+
     If makeRet Then
         tStage = Timer
         Application.StatusBar = "Cargando ALERTAS RET..."
-        RefreshConnectionSync connAlRet
+        Set loAlRet = EnsureTableForConnection(shAlRet, connAlRet, "SAB_MC_ALERTAS_RET")
         AppendStageLog "AL_RET", ElapsedSec(tStage)
     End If
-
-    ' Paso 2: crear TODAS las tablas vinculadas (datos ya cargados en PQ)
-    Application.StatusBar = "Creando tablas..."
-    Dim loRaw   As ListObject: Set loRaw   = EnsureTableForConnection(shRaw,  "SAB_MC_RAW",  connRaw)
-    Dim loMain  As ListObject: Set loMain  = EnsureTableForConnection(shMain, "SAB_MC_MAIN", connMain)
-    Dim loAlDep As ListObject
-    Dim loAlRet As ListObject
-    If makeDep Then Set loAlDep = EnsureTableForConnection(shAlDep, "SAB_MC_ALERTAS_DEP", connAlDep)
-    If makeRet Then Set loAlRet = EnsureTableForConnection(shAlRet, "SAB_MC_ALERTAS_RET", connAlRet)
 
     ' Sufijo de periodo desde loMain
     Dim minD As Date, maxD As Date, gotDates As Boolean
