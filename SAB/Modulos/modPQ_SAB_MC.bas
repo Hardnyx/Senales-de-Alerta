@@ -384,12 +384,13 @@ End Function
 '======================
 ' Helper: buscar indice de columna por lista de alternativas (case-insensitive)
 '======================
-Private Function PickColIdx(ByVal colNames() As String, ByVal alts() As String) As Long
+Private Function PickColIdx(ByRef colNames() As String, ByVal altsStr As String) As Long
+    Dim alts() As String: alts = Split(altsStr, "|")
     Dim i As Long, j As Long
     For j = 0 To UBound(alts)
         For i = 0 To UBound(colNames)
             If StrComp(colNames(i), alts(j), vbTextCompare) = 0 Then
-                PickColIdx = i + 1  ' 1-based como ListColumns
+                PickColIdx = i + 1
                 Exit Function
             End If
         Next i
@@ -427,21 +428,21 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Next i
 
     ' --- Pick: mapear columnas fuente a indices canonicos ---
-    Dim cFecha  As Long: cFecha  = PickColIdx(rawColNames, Split("Fecha|FECHA|Fec|FECHA MOV|Fecha Mov", "|"))
-    Dim cTrans  As Long: cTrans  = PickColIdx(rawColNames, Split("Transac|TRANSAC|Transacci" & Chr(243) & "n|Transaccion", "|"))
-    Dim cCuenta As Long: cCuenta = PickColIdx(rawColNames, Split("Cuenta|CUENTA|Cta|Nro Cuenta|Nro. Cuenta|N" & Chr(186) & " Cuenta", "|"))
-    Dim cNombre As Long: cNombre = PickColIdx(rawColNames, Split("Nombre|A La Orden|ALaOrden|A_la_Orden", "|"))
-    Dim cOpe    As Long: cOpe    = PickColIdx(rawColNames, Split("Ope|OPE", "|"))
-    Dim cTipo   As Long: cTipo   = PickColIdx(rawColNames, Split("Tipo|TIPO", "|"))
-    Dim cFPag   As Long: cFPag   = PickColIdx(rawColNames, Split("FPag|F. Pag.|F. Pago|Fecha Pago", "|"))
-    Dim cClase  As Long: cClase  = PickColIdx(rawColNames, Split("Clase|CLASE", "|"))
-    Dim cALaOr  As Long: cALaOr  = PickColIdx(rawColNames, Split("ALaOrden|A La Orden|Nombre", "|"))
-    Dim cDep    As Long: cDep    = PickColIdx(rawColNames, Split(depName & "|Deposito|Abono", "|"))
-    Dim cRet    As Long: cRet    = PickColIdx(rawColNames, Split("Retiro|Cargo", "|"))
-    Dim cCtaLiq As Long: cCtaLiq = PickColIdx(rawColNames, Split("CtaLiq|Cta Liq|Cta Liquidez|Cuenta Liquidaci" & Chr(243) & "n|Cuenta Liquidacion", "|"))
-    Dim cEst    As Long: cEst    = PickColIdx(rawColNames, Split("Estado|ESTADO", "|"))
-    Dim cObs    As Long: cObs    = PickColIdx(rawColNames, Split("Observaciones|Obs", "|"))
-    Dim cMon    As Long: cMon    = PickColIdx(rawColNames, Split("Moneda", "|"))
+    Dim cFecha  As Long: cFecha  = PickColIdx(rawColNames, "Fecha|FECHA|Fec|FECHA MOV|Fecha Mov")
+    Dim cTrans  As Long: cTrans  = PickColIdx(rawColNames, "Transac|TRANSAC|Transacci" & Chr(243) & "n|Transaccion")
+    Dim cCuenta As Long: cCuenta = PickColIdx(rawColNames, "Cuenta|CUENTA|Cta|Nro Cuenta|Nro. Cuenta|N" & Chr(186) & " Cuenta")
+    Dim cNombre As Long: cNombre = PickColIdx(rawColNames, "Nombre|A La Orden|ALaOrden|A_la_Orden")
+    Dim cOpe    As Long: cOpe    = PickColIdx(rawColNames, "Ope|OPE")
+    Dim cTipo   As Long: cTipo   = PickColIdx(rawColNames, "Tipo|TIPO")
+    Dim cFPag   As Long: cFPag   = PickColIdx(rawColNames, "FPag|F. Pag.|F. Pago|Fecha Pago")
+    Dim cClase  As Long: cClase  = PickColIdx(rawColNames, "Clase|CLASE")
+    Dim cALaOr  As Long: cALaOr  = PickColIdx(rawColNames, "ALaOrden|A La Orden|Nombre")
+    Dim cDep    As Long: cDep    = PickColIdx(rawColNames, depName & "|Deposito|Abono")
+    Dim cRet    As Long: cRet    = PickColIdx(rawColNames, "Retiro|Cargo")
+    Dim cCtaLiq As Long: cCtaLiq = PickColIdx(rawColNames, "CtaLiq|Cta Liq|Cta Liquidez|Cuenta Liquidaci" & Chr(243) & "n|Cuenta Liquidacion")
+    Dim cEst    As Long: cEst    = PickColIdx(rawColNames, "Estado|ESTADO")
+    Dim cObs    As Long: cObs    = PickColIdx(rawColNames, "Observaciones|Obs")
+    Dim cMon    As Long: cMon    = PickColIdx(rawColNames, "Moneda")
 
     If cFecha = 0 Then Exit Function
 
