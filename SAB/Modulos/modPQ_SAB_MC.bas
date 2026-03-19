@@ -221,8 +221,11 @@ Private Function GetMinMaxDateFromLO(ByVal lo As ListObject, ByVal colName As St
     Dim c As Range, d As Date, gotAny As Boolean
     For Each c In lc.DataBodyRange.Cells
         If TryCoerceExcelDate(c.Value2, d) Then
-            If Not gotAny Then outMin = d: outMax = d: gotAny = True
-            Else: If d < outMin Then outMin = d: If d > outMax Then outMax = d
+            If Not gotAny Then
+                outMin = d: outMax = d: gotAny = True
+            Else
+                If d < outMin Then outMin = d
+                If d > outMax Then outMax = d
             End If
         End If
     Next c
