@@ -471,10 +471,29 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Dim vDep As Variant, vRet As Variant, nDep As Double, nRet As Double
     Dim hasDep As Boolean, hasRet As Boolean
 
-    ' Rango de fechas
-    Dim today As Date: today = Date
-    Dim finMes As Date: finMes = DateSerial(Year(today), Month(today) + 1, 0)
-    Dim iniMes As Date: iniMes = DateSerial(Year(finMes), Month(finMes) - (mesesSel - 1), 1)
+    ' Primera pasada: encontrar la fecha maxima en los datos (igual que M_MC_MAIN)
+    Dim maxDateRaw As Date: maxDateRaw = 0
+    Dim tmpD As Date
+    For i = 1 To nRows
+        vF = raw(i, cFecha)
+        If TryCoerceExcelDate(vF, tmpD) Then
+            If tmpD > maxDateRaw Then maxDateRaw = tmpD
+        Else
+            If Not (IsEmpty(vF) Or IsNull(vF) Or IsError(vF)) Then
+                tmpD = ParseDDMMMYYYY(CStr(vF))
+                If tmpD > maxDateRaw Then maxDateRaw = tmpD
+            End If
+        End If
+    Next i
+
+    ' Rango de fechas derivado de los datos (fallback a hoy si no hay fechas)
+    Dim finMes As Date, iniMes As Date
+    If maxDateRaw > 0 Then
+        finMes = DateSerial(Year(maxDateRaw), Month(maxDateRaw) + 1, 0)
+    Else
+        finMes = DateSerial(Year(Date), Month(Date) + 1, 0)
+    End If
+    iniMes = DateSerial(Year(finMes), Month(finMes) - (mesesSel - 1), 1)
 
     For i = 1 To nRows
         ' --- Fecha ---
