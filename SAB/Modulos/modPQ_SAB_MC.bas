@@ -2,9 +2,8 @@ Option Explicit
 
 '==========================
 ' modPQ_SAB_MC
-' Carga SAB Movimiento de Caja.
-' RAW y MAIN via PQ. Alertas DEP y RET calculadas en VBA desde loMain
-' para evitar re-evaluacion de la cadena RAW->MAIN por cada query de alerta.
+' RAW via PQ (lectura del archivo externo).
+' MAIN y Alertas en VBA para evitar re-evaluacion lazy de PQ sobre 61k filas.
 ' Punto de entrada: CrearQuerySAB_MC(rutaArchivo, mesesSel, opMode, showProgress)
 '==========================
 
@@ -195,6 +194,7 @@ Private Function MesAbrevES(ByVal d As Date) As String
     End Select
 End Function
 
+' Convierte serial Excel o Date a Date. Devuelve True si tuvo exito.
 Private Function TryCoerceExcelDate(ByVal v As Variant, ByRef outD As Date) As Boolean
     On Error GoTo fin
     If IsError(v) Or IsEmpty(v) Then GoTo fin
@@ -208,6 +208,33 @@ Private Function TryCoerceExcelDate(ByVal v As Variant, ByRef outD As Date) As B
     End If
 fin:
     TryCoerceExcelDate = False
+End Function
+
+' Parsea string DDMMMYYYY (ej. "27SEP2024") a Date.
+' Devuelve 0 si falla.
+Private Function ParseDDMMMYYYY(ByVal s As String) As Date
+    ParseDDMMMYYYY = 0
+    If Len(s) < 9 Then Exit Function
+    s = UCase$(Trim$(s))
+    Dim dd As Integer, yy As Integer, mm As Integer
+    Dim ms As String
+    On Error GoTo fin
+    dd = CInt(Left$(s, 2))
+    ms = Mid$(s, 3, 3)
+    yy = CInt(Right$(s, 4))
+    Select Case ms
+        Case "ENE": mm = 1:  Case "FEB": mm = 2:  Case "MAR": mm = 3
+        Case "ABR": mm = 4:  Case "MAY": mm = 5:  Case "JUN": mm = 6
+        Case "JUL": mm = 7:  Case "AGO": mm = 8:  Case "SET": mm = 9
+        Case "SEP": mm = 9:  Case "OCT": mm = 10: Case "NOV": mm = 11
+        Case "DIC": mm = 12
+        Case Else: Exit Function
+    End Select
+    If dd < 1 Or dd > 31 Or mm < 1 Or mm > 12 Or yy < 1900 Then Exit Function
+    ParseDDMMMYYYY = DateSerial(yy, mm, dd)
+    Exit Function
+fin:
+    ParseDDMMMYYYY = 0
 End Function
 
 Private Function GetMinMaxDateFromLO(ByVal lo As ListObject, ByVal colName As String, _
@@ -233,7 +260,7 @@ Private Function GetMinMaxDateFromLO(ByVal lo As ListObject, ByVal colName As St
 End Function
 
 '======================
-' Power Query helpers
+' Power Query helpers (solo para RAW)
 '======================
 Private Sub MLine(ByRef buf As String, ByVal s As String)
     If buf = "" Then buf = s Else buf = buf & vbCrLf & s
@@ -294,7 +321,7 @@ Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
 End Function
 
 '======================
-' M queries
+' M query: solo RAW
 '======================
 Private Function M_MC_RAW(ByVal rutaArchivo As String) As String
     Dim m As String
@@ -354,133 +381,233 @@ Private Function M_MC_RAW(ByVal rutaArchivo As String) As String
     M_MC_RAW = m
 End Function
 
-Private Function M_MC_MAIN(ByVal mesesSel As Long) As String
-    Dim m As String
-    If mesesSel <= 0 Then mesesSel = 6
-
-    MLine m, "let"
-    MLine m, "  Source = SAB_MC_RAW,"
-    MLine m, "  CN0    = Table.ColumnNames(Source),"
-    MLine m, "  Pick   = (alts as list) as nullable text =>"
-    MLine m, "    List.First(List.Select(alts, each List.Contains(CN0, _)), null),"
-
-    MLine m, "  C_Fecha  = Pick({""Fecha"",""FECHA"",""Fec"",""FECHA MOV"",""Fecha Mov""}),"
-    MLine m, "  C_Trans  = Pick({""Transac"",""TRANSAC"",""Transacci" & Chr(243) & "n"",""Transaccion""}),"
-    MLine m, "  C_Cuenta = Pick({""Cuenta"",""CUENTA"",""Cta"",""Nro Cuenta"",""Nro. Cuenta"",""N" & Chr(186) & " Cuenta""}),"
-    MLine m, "  C_Nombre = Pick({""Nombre"",""A La Orden"",""ALaOrden"",""A_la_Orden""}),"
-    MLine m, "  C_Ope    = Pick({""Ope"",""OPE""}),"
-    MLine m, "  C_Tipo   = Pick({""Tipo"",""TIPO""}),"
-    MLine m, "  C_FPag   = Pick({""FPag"",""F. Pag."",""F. Pago"",""Fecha Pago""}),"
-    MLine m, "  C_Clase  = Pick({""Clase"",""CLASE""}),"
-    MLine m, "  C_ALaOr  = Pick({""ALaOrden"",""A La Orden"",""Nombre""}),"
-    MLine m, "  C_Dep    = Pick({""Dep" & Chr(243) & "sito"",""Deposito"",""Abono""}),"
-    MLine m, "  C_Ret    = Pick({""Retiro"",""Cargo""}),"
-    MLine m, "  C_CtaLiq = Pick({""CtaLiq"",""Cta Liq"",""Cta Liquidez"",""Cuenta Liquidaci" & Chr(243) & "n"",""Cuenta Liquidacion""}),"
-    MLine m, "  C_Est    = Pick({""Estado"",""ESTADO""}),"
-    MLine m, "  C_Obs    = Pick({""Observaciones"",""Obs""}),"
-    MLine m, "  C_Mon    = Pick({""Moneda""}),"
-
-    MLine m, "  RenPairs = List.RemoveNulls({"
-    MLine m, "    if C_Fecha <>null then {C_Fecha,  ""Fecha""}         else null,"
-    MLine m, "    if C_Trans <>null then {C_Trans,  ""Transac""}       else null,"
-    MLine m, "    if C_Cuenta<>null then {C_Cuenta, ""Cuenta""}        else null,"
-    MLine m, "    if C_Nombre<>null then {C_Nombre, ""Nombre""}        else null,"
-    MLine m, "    if C_Ope   <>null then {C_Ope,    ""Ope""}           else null,"
-    MLine m, "    if C_Tipo  <>null then {C_Tipo,   ""Tipo""}          else null,"
-    MLine m, "    if C_FPag  <>null then {C_FPag,   ""FPag""}          else null,"
-    MLine m, "    if C_Clase <>null then {C_Clase,  ""Clase""}         else null,"
-    MLine m, "    if C_ALaOr <>null then {C_ALaOr,  ""ALaOrden""}      else null,"
-    MLine m, "    if C_Dep   <>null then {C_Dep,    ""Dep" & Chr(243) & "sito""}     else null,"
-    MLine m, "    if C_Ret   <>null then {C_Ret,    ""Retiro""}        else null,"
-    MLine m, "    if C_CtaLiq<>null then {C_CtaLiq, ""CtaLiq""}        else null,"
-    MLine m, "    if C_Est   <>null then {C_Est,    ""Estado""}        else null,"
-    MLine m, "    if C_Obs   <>null then {C_Obs,    ""Observaciones""} else null,"
-    MLine m, "    if C_Mon   <>null then {C_Mon,    ""Moneda""}        else null"
-    MLine m, "  }),"
-    MLine m, "  Ren = if List.Count(RenPairs)>0"
-    MLine m, "        then Table.RenameColumns(Source, RenPairs, MissingField.Ignore)"
-    MLine m, "        else Source,"
-
-    ' Parseo de fechas DDMMMYYYY: un solo TransformColumns con if/else inline.
-    ' Sin pasos lazy anidados. PQ evalua un unico step con 12 ramas if/else de costo
-    ' fijo por fila, sin overhead de wrappers de tabla adicionales.
-    MLine m, "  WithFecha ="
-    MLine m, "    if not List.Contains(Table.ColumnNames(Ren), ""Fecha"") then Ren"
-    MLine m, "    else Table.TransformColumns(Ren, {{""Fecha"","
-    MLine m, "      each let t  = if _ = null then null"
-    MLine m, "                    else Text.Upper(Text.Trim(Text.From(_))),"
-    MLine m, "               ok = t <> null and Text.Length(t) >= 9,"
-    MLine m, "               dd = if ok then Text.Start(t, 2)     else null,"
-    MLine m, "               ms = if ok then Text.Middle(t, 2, 3) else null,"
-    MLine m, "               yy = if ok then Text.End(t, 4)       else null,"
-    MLine m, "               mn = if ms = null  then null"
-    MLine m, "                    else if ms = ""ENE"" then ""01"" else if ms = ""FEB"" then ""02"""
-    MLine m, "                    else if ms = ""MAR"" then ""03"" else if ms = ""ABR"" then ""04"""
-    MLine m, "                    else if ms = ""MAY"" then ""05"" else if ms = ""JUN"" then ""06"""
-    MLine m, "                    else if ms = ""JUL"" then ""07"" else if ms = ""AGO"" then ""08"""
-    MLine m, "                    else if ms = ""SET"" then ""09"" else if ms = ""SEP"" then ""09"""
-    MLine m, "                    else if ms = ""OCT"" then ""10"" else if ms = ""NOV"" then ""11"""
-    MLine m, "                    else if ms = ""DIC"" then ""12"" else ms,"
-    MLine m, "               iso = if dd=null or mn=null or yy=null then null"
-    MLine m, "                     else yy & ""-"" & mn & ""-"" & dd"
-    MLine m, "           in try Date.FromText(iso, ""en-US"") otherwise null,"
-    MLine m, "      type date}}),"
-
-    MLine m, "  ClaseUp  = if List.Contains(Table.ColumnNames(WithFecha), ""Clase"")"
-    MLine m, "             then Table.TransformColumns(WithFecha, {{""Clase"","
-    MLine m, "               each if _=null then null else Text.Upper(Text.Trim(Text.From(_))), type text}})"
-    MLine m, "             else WithFecha,"
-    MLine m, "  FilClase = if List.Contains(Table.ColumnNames(ClaseUp), ""Clase"")"
-    MLine m, "             then Table.SelectRows(ClaseUp,"
-    MLine m, "               each [Clase]=""DPE"" or [Clase]=""DFS"" or [Clase]=""RAF"" or [Clase]=""RFS"")"
-    MLine m, "             else ClaseUp,"
-
-    MLine m, "  CN1   = Table.ColumnNames(FilClase),"
-    MLine m, "  FixDR = if List.Contains(CN1, ""Dep" & Chr(243) & "sito"") and List.Contains(CN1, ""Retiro"") then"
-    MLine m, "    let"
-    MLine m, "      A1 = Table.AddColumn(FilClase, ""__Dep"","
-    MLine m, "             each if [Dep" & Chr(243) & "sito]<>null and [Dep" & Chr(243) & "sito]<>0"
-    MLine m, "                  then [Dep" & Chr(243) & "sito] else null, type number),"
-    MLine m, "      A2 = Table.AddColumn(A1, ""__Ret"","
-    MLine m, "             each if [Retiro]<>null and [Retiro]<>0"
-    MLine m, "                      and ([Dep" & Chr(243) & "sito]=null or [Dep" & Chr(243) & "sito]=0)"
-    MLine m, "                  then [Retiro] else null, type number),"
-    MLine m, "      Rm = Table.RemoveColumns(A2, {""Dep" & Chr(243) & "sito"",""Retiro""}),"
-    MLine m, "      Rn = Table.RenameColumns(Rm, {{""__Dep"",""Dep" & Chr(243) & "sito""},{""__Ret"",""Retiro""}})"
-    MLine m, "    in Rn"
-    MLine m, "  else FilClase,"
-
-    MLine m, "  Target = {""Fecha"",""Transac"",""Cuenta"",""Nombre"",""Ope"",""Tipo"",""FPag"","
-    MLine m, "            ""Clase"",""ALaOrden"",""Dep" & Chr(243) & "sito"",""Retiro"","
-    MLine m, "            ""CtaLiq"",""Estado"",""Observaciones"",""Moneda""},"
-    MLine m, "  Present    = List.Intersect({Target, Table.ColumnNames(FixDR)}),"
-    MLine m, "  Sel        = Table.SelectColumns(FixDR, Present, MissingField.Ignore),"
-    MLine m, "  AddMissing = List.Accumulate(List.Difference(Target, Present), Sel,"
-    MLine m, "                 (st,c) => Table.AddColumn(st, c, each null)),"
-
-    MLine m, "  Dates  = if List.Contains(Table.ColumnNames(AddMissing), ""Fecha"")"
-    MLine m, "           then List.RemoveNulls(Table.Column(AddMissing, ""Fecha"")) else {},"
-    MLine m, "  FinMes = if List.Count(Dates)>0 then Date.EndOfMonth(List.Max(Dates))"
-    MLine m, "           else Date.EndOfMonth(DateTime.Date(DateTime.LocalNow())),"
-    MLine m, "  IniMes = Date.StartOfMonth(Date.AddMonths(FinMes, -" & CStr(mesesSel - 1) & ")),"
-    MLine m, "  F      = if List.Contains(Table.ColumnNames(AddMissing), ""Fecha"")"
-    MLine m, "           then Table.SelectRows(AddMissing,"
-    MLine m, "             each [Fecha]<>null and [Fecha]>=IniMes and [Fecha]<=FinMes)"
-    MLine m, "           else AddMissing,"
-    MLine m, "  SAB_MC_MAIN = Table.Sort(F, {{""Fecha"", Order.Ascending}})"
-    MLine m, "in"
-    MLine m, "  SAB_MC_MAIN"
-
-    M_MC_MAIN = m
+'======================
+' Helper: buscar indice de columna por lista de alternativas (case-insensitive)
+'======================
+Private Function PickColIdx(ByVal colNames() As String, ByVal alts() As String) As Long
+    Dim i As Long, j As Long
+    For j = 0 To UBound(alts)
+        For i = 0 To UBound(colNames)
+            If StrComp(colNames(i), alts(j), vbTextCompare) = 0 Then
+                PickColIdx = i + 1  ' 1-based como ListColumns
+                Exit Function
+            End If
+        Next i
+    Next j
+    PickColIdx = 0
 End Function
 
 '======================
+' MAIN en VBA
+' Lee loRaw, aplica la misma logica que M_MC_MAIN pero en VBA nativo:
+'   - Renombrado de columnas via Pick
+'   - Parseo de fechas DDMMMYYYY con Select Case (nanosegundos por fila)
+'   - Filtro por Clase (DPE/DFS/RAF/RFS)
+'   - Separacion exclusiva DEP/RET
+'   - Filtro por rango de meses
+'   - Ordenar por Fecha
+' Devuelve el ListObject creado en shMain.
+'======================
+Private Function BuildMainVBA(ByVal loRaw As ListObject, _
+                               ByVal mesesSel As Long, _
+                               ByVal shMain As Worksheet, _
+                               ByVal loMainName As String) As ListObject
+    Set BuildMainVBA = Nothing
+    If loRaw Is Nothing Then Exit Function
+    If loRaw.DataBodyRange Is Nothing Then Exit Function
+
+    Dim depName As String: depName = "Dep" & Chr(243) & "sito"
+
+    ' --- Leer nombres de columna de loRaw ---
+    Dim nCols As Long: nCols = loRaw.ListColumns.Count
+    ReDim rawColNames(0 To nCols - 1) As String
+    Dim i As Long
+    For i = 1 To nCols
+        rawColNames(i - 1) = loRaw.ListColumns(i).Name
+    Next i
+
+    ' --- Pick: mapear columnas fuente a indices canonicos ---
+    Dim cFecha  As Long: cFecha  = PickColIdx(rawColNames, Split("Fecha|FECHA|Fec|FECHA MOV|Fecha Mov", "|"))
+    Dim cTrans  As Long: cTrans  = PickColIdx(rawColNames, Split("Transac|TRANSAC|Transacci" & Chr(243) & "n|Transaccion", "|"))
+    Dim cCuenta As Long: cCuenta = PickColIdx(rawColNames, Split("Cuenta|CUENTA|Cta|Nro Cuenta|Nro. Cuenta|N" & Chr(186) & " Cuenta", "|"))
+    Dim cNombre As Long: cNombre = PickColIdx(rawColNames, Split("Nombre|A La Orden|ALaOrden|A_la_Orden", "|"))
+    Dim cOpe    As Long: cOpe    = PickColIdx(rawColNames, Split("Ope|OPE", "|"))
+    Dim cTipo   As Long: cTipo   = PickColIdx(rawColNames, Split("Tipo|TIPO", "|"))
+    Dim cFPag   As Long: cFPag   = PickColIdx(rawColNames, Split("FPag|F. Pag.|F. Pago|Fecha Pago", "|"))
+    Dim cClase  As Long: cClase  = PickColIdx(rawColNames, Split("Clase|CLASE", "|"))
+    Dim cALaOr  As Long: cALaOr  = PickColIdx(rawColNames, Split("ALaOrden|A La Orden|Nombre", "|"))
+    Dim cDep    As Long: cDep    = PickColIdx(rawColNames, Split(depName & "|Deposito|Abono", "|"))
+    Dim cRet    As Long: cRet    = PickColIdx(rawColNames, Split("Retiro|Cargo", "|"))
+    Dim cCtaLiq As Long: cCtaLiq = PickColIdx(rawColNames, Split("CtaLiq|Cta Liq|Cta Liquidez|Cuenta Liquidaci" & Chr(243) & "n|Cuenta Liquidacion", "|"))
+    Dim cEst    As Long: cEst    = PickColIdx(rawColNames, Split("Estado|ESTADO", "|"))
+    Dim cObs    As Long: cObs    = PickColIdx(rawColNames, Split("Observaciones|Obs", "|"))
+    Dim cMon    As Long: cMon    = PickColIdx(rawColNames, Split("Moneda", "|"))
+
+    If cFecha = 0 Then Exit Function
+
+    ' --- Leer datos en array ---
+    Dim nRows As Long: nRows = loRaw.DataBodyRange.Rows.Count
+    Dim raw   As Variant: raw = loRaw.DataBodyRange.Value2
+
+    ' --- Target: 15 columnas canonicas de MAIN ---
+    ' Fecha, Transac, Cuenta, Nombre, Ope, Tipo, FPag, Clase,
+    ' ALaOrden, Deposito, Retiro, CtaLiq, Estado, Observaciones, Moneda
+    Dim TARGET_COLS As Long: TARGET_COLS = 15
+
+    ' Indices en outArr (1-based en columna)
+    Const O_FECHA  As Long = 1:  Const O_TRANSAC As Long = 2:  Const O_CUENTA As Long = 3
+    Const O_NOMBRE As Long = 4:  Const O_OPE     As Long = 5:  Const O_TIPO   As Long = 6
+    Const O_FPAG   As Long = 7:  Const O_CLASE   As Long = 8:  Const O_ALAOR  As Long = 9
+    Const O_DEP    As Long = 10: Const O_RET     As Long = 11: Const O_CTALIQ As Long = 12
+    Const O_EST    As Long = 13: Const O_OBS     As Long = 14: Const O_MON    As Long = 15
+
+    ' Pre-alocar output (worst case = nRows)
+    ReDim outArr(1 To nRows, 1 To TARGET_COLS) As Variant
+
+    Dim r    As Long: r = 0
+    Dim vF   As Variant, dF As Date
+    Dim vCl  As Variant, sCl As String
+    Dim vDep As Variant, vRet As Variant, nDep As Double, nRet As Double
+    Dim hasDep As Boolean, hasRet As Boolean
+
+    ' Rango de fechas
+    Dim today As Date: today = Date
+    Dim finMes As Date: finMes = DateSerial(Year(today), Month(today) + 1, 0)
+    Dim iniMes As Date: iniMes = DateSerial(Year(finMes), Month(finMes) - (mesesSel - 1), 1)
+
+    For i = 1 To nRows
+        ' --- Fecha ---
+        vF = raw(i, cFecha)
+        ' Intentar como serial/Date primero; si falla, intentar parsear como texto DDMMMYYYY
+        If Not TryCoerceExcelDate(vF, dF) Then
+            If IsEmpty(vF) Or IsNull(vF) Or IsError(vF) Then GoTo SkipRow
+            dF = ParseDDMMMYYYY(CStr(vF))
+            If dF = 0 Then GoTo SkipRow
+        End If
+
+        ' --- Filtro Clase (DPE / DFS / RAF / RFS) ---
+        If cClase > 0 Then
+            vCl = raw(i, cClase)
+            If IsEmpty(vCl) Or IsNull(vCl) Or IsError(vCl) Then GoTo SkipRow
+            sCl = UCase$(Trim$(CStr(vCl)))
+            Select Case sCl
+                Case "DPE", "DFS", "RAF", "RFS"
+                    ' OK
+                Case Else
+                    GoTo SkipRow
+            End Select
+        End If
+
+        ' --- Filtro rango de fechas ---
+        If dF < iniMes Or dF > finMes Then GoTo SkipRow
+
+        ' --- Separacion exclusiva DEP / RET ---
+        hasDep = False: hasDep = False
+        nDep = 0: nRet = 0
+        If cDep > 0 Then
+            vDep = raw(i, cDep)
+            If Not (IsEmpty(vDep) Or IsNull(vDep) Or IsError(vDep)) Then
+                On Error Resume Next: nDep = CDbl(vDep): On Error GoTo 0
+                hasDep = (nDep <> 0)
+            End If
+        End If
+        If cRet > 0 Then
+            vRet = raw(i, cRet)
+            If Not (IsEmpty(vRet) Or IsNull(vRet) Or IsError(vRet)) Then
+                On Error Resume Next: nRet = CDbl(vRet): On Error GoTo 0
+                hasRet = (nRet <> 0)
+            End If
+        End If
+
+        ' Si tiene DEP, DEP prevalece; RET solo si DEP es null/0
+        Dim finalDep As Variant: finalDep = Null
+        Dim finalRet As Variant: finalRet = Null
+        If hasDep Then
+            finalDep = nDep
+        ElseIf hasRet Then
+            finalRet = nRet
+        Else
+            GoTo SkipRow   ' fila sin movimiento
+        End If
+
+        ' --- Escribir fila ---
+        r = r + 1
+        outArr(r, O_FECHA) = CDbl(CDate(dF))   ' serial numerico para que Excel lo reconozca como fecha
+
+        If cTrans  > 0 Then outArr(r, O_TRANSAC) = raw(i, cTrans)
+        If cCuenta > 0 Then outArr(r, O_CUENTA)  = raw(i, cCuenta)
+        If cNombre > 0 Then outArr(r, O_NOMBRE)  = raw(i, cNombre)
+        If cOpe    > 0 Then outArr(r, O_OPE)     = raw(i, cOpe)
+        If cTipo   > 0 Then outArr(r, O_TIPO)    = raw(i, cTipo)
+        If cFPag   > 0 Then outArr(r, O_FPAG)    = raw(i, cFPag)
+        outArr(r, O_CLASE) = sCl
+        If cALaOr  > 0 Then outArr(r, O_ALAOR)   = raw(i, cALaOr)
+        outArr(r, O_DEP)   = finalDep
+        outArr(r, O_RET)   = finalRet
+        If cCtaLiq > 0 Then outArr(r, O_CTALIQ)  = raw(i, cCtaLiq)
+        If cEst    > 0 Then outArr(r, O_EST)      = raw(i, cEst)
+        If cObs    > 0 Then outArr(r, O_OBS)      = raw(i, cObs)
+        If cMon    > 0 Then outArr(r, O_MON)      = raw(i, cMon)
+
+SkipRow:
+    Next i
+
+    If r = 0 Then Exit Function
+
+    ' --- Ordenar en memoria por Fecha (burbuja rapida, pocos meses = casi ordenado ya) ---
+    ' Para 61k filas usar QuickSort en columna O_FECHA
+    QuickSortByCol outArr, 1, r, O_FECHA
+
+    ' --- Escribir en hoja ---
+    ClearSheetButKeepName shMain
+
+    Dim hdrs As Variant
+    hdrs = Array("Fecha", "Transac", "Cuenta", "Nombre", "Ope", "Tipo", "FPag", _
+                 "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda")
+    Dim j As Long
+    For j = 0 To 14: shMain.Cells(1, j + 1).Value = hdrs(j): Next j
+
+    shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, TARGET_COLS)).Value = outArr
+
+    ' Formatear columna Fecha como fecha
+    shMain.Columns(O_FECHA).NumberFormat = "dd/mm/yyyy"
+
+    ' --- Crear ListObject estatico ---
+    Dim loMain As ListObject
+    Set loMain = shMain.ListObjects.Add(xlSrcRange, _
+                     shMain.Range(shMain.Cells(1, 1), shMain.Cells(r + 1, TARGET_COLS)), , xlYes)
+    On Error Resume Next: loMain.Name = loMainName: On Error GoTo 0
+    On Error Resume Next: loMain.TableStyle = TABLE_STYLE: On Error GoTo 0
+
+    Set BuildMainVBA = loMain
+End Function
+
+'======================
+' QuickSort in-place sobre array 2D por columna sortCol (valores numericos/fecha)
+'======================
+Private Sub QuickSortByCol(ByRef arr() As Variant, ByVal lo As Long, ByVal hi As Long, ByVal sortCol As Long)
+    If lo >= hi Then Exit Sub
+    Dim pivot As Double: pivot = CDbl(arr((lo + hi) \ 2, sortCol))
+    Dim i As Long: i = lo
+    Dim j As Long: j = hi
+    Dim tmp As Variant
+    Dim c As Long
+    Do While i <= j
+        Do While CDbl(arr(i, sortCol)) < pivot: i = i + 1: Loop
+        Do While CDbl(arr(j, sortCol)) > pivot: j = j - 1: Loop
+        If i <= j Then
+            For c = 1 To UBound(arr, 2)
+                tmp = arr(i, c): arr(i, c) = arr(j, c): arr(j, c) = tmp
+            Next c
+            i = i + 1: j = j - 1
+        End If
+    Loop
+    If lo < j Then QuickSortByCol arr, lo, j, sortCol
+    If i < hi Then QuickSortByCol arr, i, hi, sortCol
+End Sub
+
+'======================
 ' Alertas en VBA desde loMain
-'
-' Calcula la tabla de alertas directamente desde el array en memoria de loMain.
-' Equivale a la logica M original (group by Cuenta/dia, agregacion, desviacion)
-' pero sin re-evaluar la cadena RAW->MAIN en PQ.
-'
 ' which: "DEP" -> columna Deposito  |  "RET" -> columna Retiro
 '======================
 Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
@@ -496,7 +623,6 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
     Dim depName As String: depName = "Dep" & Chr(243) & "sito"
 
-    ' Localizar indices de columna
     Dim colFecha  As Long: colFecha  = 0
     Dim colCuenta As Long: colCuenta = 0
     Dim colMonto  As Long: colMonto  = 0
@@ -520,12 +646,8 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim nRows As Long: nRows = loMain.DataBodyRange.Rows.Count
     Dim data  As Variant: data = loMain.DataBodyRange.Value2
 
-    ' Diccionarios (late binding, sin referencia a Scripting Runtime)
-    Dim dDay  As Object: Set dDay  = CreateObject("Scripting.Dictionary") ' "Cuenta|DateLng" -> suma monto dia
-    Dim dMeta As Object: Set dMeta = CreateObject("Scripting.Dictionary") ' "Cuenta" -> "Clase|Moneda"
-    Dim dSum  As Object: Set dSum  = CreateObject("Scripting.Dictionary") ' "Cuenta" -> suma total
-    Dim dNOp  As Object: Set dNOp  = CreateObject("Scripting.Dictionary") ' "Cuenta" -> num dias distintos
-    Dim dMaxD As Object: Set dMaxD = CreateObject("Scripting.Dictionary") ' "Cuenta" -> max date (Long)
+    Dim dDay  As Object: Set dDay  = CreateObject("Scripting.Dictionary")
+    Dim dMeta As Object: Set dMeta = CreateObject("Scripting.Dictionary")
 
     Dim vM As Variant, dM As Double
     Dim vC As Variant, sC As String
@@ -533,25 +655,21 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim dayKey As String
 
     For i = 1 To nRows
-        ' Monto
         vM = data(i, colMonto)
-        If IsEmpty(vM) Or IsNull(vM) Or IsError(vM) Then GoTo SkipRow
+        If IsEmpty(vM) Or IsNull(vM) Or IsError(vM) Then GoTo SkipAl
         On Error Resume Next: dM = CDbl(vM): On Error GoTo 0
-        If dM = 0 Then GoTo SkipRow
+        If dM = 0 Then GoTo SkipAl
 
-        ' Cuenta
         vC = data(i, colCuenta)
-        If IsEmpty(vC) Or IsNull(vC) Or IsError(vC) Then GoTo SkipRow
+        If IsEmpty(vC) Or IsNull(vC) Or IsError(vC) Then GoTo SkipAl
         sC = Trim$(CStr(vC))
-        If Len(sC) = 0 Then GoTo SkipRow
+        If Len(sC) = 0 Then GoTo SkipAl
 
-        ' Fecha
-        If colFecha = 0 Then GoTo SkipRow
+        If colFecha = 0 Then GoTo SkipAl
         vF = data(i, colFecha)
-        If Not TryCoerceExcelDate(vF, dF) Then GoTo SkipRow
+        If Not TryCoerceExcelDate(vF, dF) Then GoTo SkipAl
         lF = CLng(CDbl(CDate(dF)))
 
-        ' Acumular monto diario
         dayKey = sC & "|" & CStr(lF)
         If dDay.Exists(dayKey) Then
             dDay(dayKey) = CDbl(dDay(dayKey)) + dM
@@ -559,7 +677,6 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
             dDay.Add dayKey, dM
         End If
 
-        ' Meta: primera Clase y Moneda no nulas por Cuenta
         If Not dMeta.Exists(sC) Then
             Dim sCl As String: sCl = ""
             Dim sMn As String: sMn = ""
@@ -575,32 +692,31 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
             End If
             dMeta.Add sC, sCl & "|" & sMn
         End If
-
-SkipRow:
+SkipAl:
     Next i
 
-    ' Segunda pasada sobre dDay: construir dSum, dNOp, dMaxD por Cuenta
+    Dim dSum  As Object: Set dSum  = CreateObject("Scripting.Dictionary")
+    Dim dNOp  As Object: Set dNOp  = CreateObject("Scripting.Dictionary")
+    Dim dMaxD As Object: Set dMaxD = CreateObject("Scripting.Dictionary")
+
     Dim kk As Variant, pts() As String, sCta As String, lDate As Long, monDia As Double
     For Each kk In dDay.Keys
         pts    = Split(CStr(kk), "|")
         sCta   = pts(0)
         lDate  = CLng(pts(1))
         monDia = CDbl(dDay(kk))
-
         If Not dSum.Exists(sCta) Then
             dSum.Add sCta, 0#: dNOp.Add sCta, 0&: dMaxD.Add sCta, 0&
         End If
-        dSum(sCta) = CDbl(dSum(sCta)) + monDia
-        dNOp(sCta) = CLng(dNOp(sCta)) + 1
+        dSum(sCta)  = CDbl(dSum(sCta)) + monDia
+        dNOp(sCta)  = CLng(dNOp(sCta)) + 1
         If lDate > CLng(dMaxD(sCta)) Then dMaxD(sCta) = lDate
     Next kk
 
     Dim nCtas As Long: nCtas = dSum.Count
     If nCtas = 0 Then Exit Function
 
-    ' Construir array de salida: 9 columnas
     ReDim outArr(1 To nCtas, 1 To 9) As Variant
-
     Dim r As Long: r = 0
     Dim sCta2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
@@ -645,7 +761,6 @@ SkipRow:
         outArr(r, 9) = nivel
     Next sCta2
 
-    ' Escribir encabezados y datos
     ClearSheetButKeepName shAl
 
     Dim hdrs As Variant
@@ -655,14 +770,12 @@ SkipRow:
     For j = 0 To 8: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
     shAl.Range(shAl.Cells(2, 1), shAl.Cells(nCtas + 1, 9)).Value = outArr
 
-    ' Crear ListObject estatico
     Dim loAl As ListObject
     Set loAl = shAl.ListObjects.Add(xlSrcRange, _
                    shAl.Range(shAl.Cells(1, 1), shAl.Cells(nCtas + 1, 9)), , xlYes)
     On Error Resume Next: loAl.Name = loAlName: On Error GoTo 0
     On Error Resume Next: loAl.TableStyle = TABLE_STYLE: On Error GoTo 0
 
-    ' Ordenar por DESVIACION_MEDIA_% descendente
     On Error Resume Next
     loAl.Sort.SortFields.Clear
     loAl.Sort.SortFields.Add Key:=loAl.ListColumns("DESVIACION_MEDIA_%").DataBodyRange, _
@@ -699,31 +812,29 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
 
     SafeApp True
 
-    ' Solo RAW y MAIN en PQ; alertas se calculan en VBA desde loMain
-    UpsertWorkbookQuery "SAB_MC_RAW",  M_MC_RAW(rutaArchivo)
-    UpsertWorkbookQuery "SAB_MC_MAIN", M_MC_MAIN(mesesSel)
+    ' Solo RAW en PQ
+    UpsertWorkbookQuery "SAB_MC_RAW", M_MC_RAW(rutaArchivo)
 
     Dim shRaw  As Worksheet: Set shRaw  = EnsureSheet("SAB_MC_RAW_WORK")
     Dim shMain As Worksheet: Set shMain = EnsureSheet("SAB_MC_MAIN_WORK")
     ClearSheetButKeepName shRaw
     ClearSheetButKeepName shMain
 
-    Dim connRaw  As WorkbookConnection: Set connRaw  = EnsurePQConnection("SAB_MC_RAW")
-    Dim connMain As WorkbookConnection: Set connMain = EnsurePQConnection("SAB_MC_MAIN")
+    Dim connRaw As WorkbookConnection: Set connRaw = EnsurePQConnection("SAB_MC_RAW")
 
     Dim tStage As Double
 
     tStage = Timer
     Application.StatusBar = "Cargando RAW..."
-    Dim loRaw  As ListObject: Set loRaw  = EnsureTableForConnection(shRaw,  "SAB_MC_RAW",  connRaw)
+    Dim loRaw As ListObject: Set loRaw = EnsureTableForConnection(shRaw, "SAB_MC_RAW", connRaw)
     AppendStageLog "RAW", ElapsedSec(tStage)
 
     tStage = Timer
-    Application.StatusBar = "Cargando MAIN..."
-    Dim loMain As ListObject: Set loMain = EnsureTableForConnection(shMain, "SAB_MC_MAIN", connMain)
+    Application.StatusBar = "Construyendo MAIN..."
+    Dim loMain As ListObject: Set loMain = BuildMainVBA(loRaw, mesesSel, shMain, "SAB_MC_MAIN")
     AppendStageLog "MAIN", ElapsedSec(tStage)
 
-    ' Alertas calculadas en VBA
+    ' Alertas en VBA
     Dim shAlDep As Worksheet, shAlRet As Worksheet
     Dim loAlDep As ListObject, loAlRet As ListObject
 
@@ -745,7 +856,7 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
         AppendStageLog "AL_RET", ElapsedSec(tStage)
     End If
 
-    ' Sufijo de periodo
+    ' Sufijo de periodo desde loMain
     Dim minD As Date, maxD As Date, gotDates As Boolean
     gotDates = GetMinMaxDateFromLO(loMain, "Fecha", minD, maxD)
     If Not gotDates Then gotDates = GetMinMaxDateFromLO(loRaw, "Fecha", minD, maxD)
@@ -760,12 +871,12 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     suf = MesAbrevES(ini) & "_" & MesAbrevES(fin) & "_" & Year(fin)
 
     ' Renombrar RAW y MAIN
-    Dim nmRaw  As String: nmRaw  = SanitizeSheetName("SAB_MC_RAW_" & suf)
-    Dim nmMain As String: nmMain = SanitizeSheetName("SAB_MC_"     & suf)
+    Dim nmRaw  As String: nmRaw  = SanitizeSheetName("SAB_MC_RAW_"  & suf)
+    Dim nmMain As String: nmMain = SanitizeSheetName("SAB_MC_"      & suf)
 
-    DeleteSheetIfExists ThisWorkbook, nmRaw:   FreeSheetName ThisWorkbook, nmRaw,  shRaw
-    DeleteSheetIfExists ThisWorkbook, nmMain:  FreeSheetName ThisWorkbook, nmMain, shMain
-    DeleteAllTablesByName ThisWorkbook, nmRaw: DeleteAllTablesByName ThisWorkbook, nmMain
+    DeleteSheetIfExists ThisWorkbook, nmRaw:  FreeSheetName ThisWorkbook, nmRaw,  shRaw
+    DeleteSheetIfExists ThisWorkbook, nmMain: FreeSheetName ThisWorkbook, nmMain, shMain
+    DeleteAllTablesByName ThisWorkbook, nmRaw:  DeleteAllTablesByName ThisWorkbook, nmMain
     SetTableNameSafe ThisWorkbook, loRaw,  nmRaw
     SetTableNameSafe ThisWorkbook, loMain, nmMain
     RenameSheetExact shRaw,  nmRaw
