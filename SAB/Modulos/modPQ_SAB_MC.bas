@@ -627,6 +627,21 @@ Private Sub QuickSortByCol(ByRef arr() As Variant, ByVal lo As Long, ByVal hi As
 End Sub
 
 '======================
+' Limpia caracteres invisibles de un string:
+' Chr(160) = non-breaking space (frecuente en CSV con encoding 1252)
+' Chr(0..31) = caracteres de control
+'======================
+Private Function CleanStr(ByVal s As String) As String
+    Dim i As Integer
+    ' Reemplazar caracteres no imprimibles y espacio de no separacion
+    For i = 0 To 31
+        s = Replace(s, Chr(i), "")
+    Next i
+    s = Replace(s, Chr(160), "")
+    CleanStr = Trim$(s)
+End Function
+
+'======================
 ' Construye diccionario Cuenta -> RUC/NIT desde la tabla Clientes_SAB.
 ' Si la tabla no existe devuelve diccionario vacio y registra advertencia en mStageLog.
 '======================
@@ -661,13 +676,13 @@ Public Function BuildCuentaDocDict() As Object
                             vD = data(i, colDoc)
                             If Not (IsEmpty(vC) Or IsNull(vC) Or IsError(vC)) And _
                                Not (IsEmpty(vD) Or IsNull(vD) Or IsError(vD)) Then
-                                sC = Trim$(CStr(vC))
-                                sD = Trim$(CStr(vD))
+                                sC = CleanStr(CStr(vC))
+                                sD = CleanStr(CStr(vD))
                                 sT = ""
                                 If colTipo > 0 Then
                                     vT = data(i, colTipo)
                                     If Not (IsEmpty(vT) Or IsNull(vT) Or IsError(vT)) Then
-                                        sT = UCase$(Trim$(CStr(vT)))
+                                        sT = UCase$(CleanStr(CStr(vT)))
                                     End If
                                 End If
                                 If Len(sC) > 0 And Len(sD) > 0 Then
@@ -760,9 +775,9 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
             sRawVal = CStr(dCuentaDoc(sCuenta))
             Dim pipPos As Long: pipPos = InStr(sRawVal, "|")
             If pipPos > 0 Then
-                sKey = Left$(sRawVal, pipPos - 1)
+                sKey = CleanStr(Left$(sRawVal, pipPos - 1))
             Else
-                sKey = sRawVal
+                sKey = CleanStr(sRawVal)
             End If
         Else
             sKey = sCuenta
@@ -860,7 +875,7 @@ SkipAl:
         If dMeta.Exists(CStr(sDoc2)) Then metaStr = CStr(dMeta(CStr(sDoc2)))
         mParts = Split(metaStr, "|")
 
-        outArr(r, 1) = CStr(sDoc2)
+        outArr(r, 1) = CleanStr(CStr(sDoc2))
         outArr(r, 2) = mParts(0)
         outArr(r, 3) = IIf(UBound(mParts) >= 1, mParts(1), "")
         outArr(r, 4) = Round(suma,   2)
