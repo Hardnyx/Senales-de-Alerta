@@ -399,10 +399,16 @@ End Sub
 '=========================================================
 ' PUBLIC: BuildGraficosAlertasEnHoja
 '
-' loAL  : ListObject de ALERTAS (SAB_MC_ALERTAS_DEP o _RET)
-' loMAIN: ListObject de transacciones (SAB_MC_MAIN)
+' loAL  : ListObject de ALERTAS MC (SAB_MC_ALERTAS_DEP o _RET)
+'         Columna clave: "RUC/NIT" o "Cuenta" (primer columna, detectada dinamicamente)
+'         Incluye columna TIPO_PERSONA con valores "N" o "J" (de Clientes_SAB)
+' loMAIN: ListObject SAB_MC_MAIN (Cuenta, Fecha, Deposito/Retiro)
 ' which : "DEP" o "RET"
 ' suf   : sufijo de periodo para nombres de graficos
+'
+' Biparticion NAT (N) izquierda / JUR (J) derecha, top 5 cada una.
+' Para agregar datos de MAIN por RUC/NIT (que puede cubrir varias Cuentas),
+' se carga el diccionario Cuenta->RUC/NIT desde Clientes_SAB via modPQ_SAB_MC.
 '=========================================================
 Public Sub BuildGraficosAlertasEnHoja( _
     ByVal loAL   As ListObject, _
@@ -421,8 +427,7 @@ Public Sub BuildGraficosAlertasEnHoja( _
     If op <> "DEP" And op <> "RET" Then op = "DEP"
 
     If Not LOHasColumn(loAL, "DESVIACION_MEDIA_%") Then Exit Sub
-    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") Then Exit Sub
-    If Not LOHasColumn(loAL, "Cuenta") Then Exit Sub
+    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS")    Then Exit Sub
 
     Dim ws As Worksheet: Set ws = loAL.Parent
     Dim wb As Workbook:  Set wb = ws.Parent
@@ -431,39 +436,78 @@ Public Sub BuildGraficosAlertasEnHoja( _
     Dim chartPref As String: chartPref = "GF_SAB_" & op & "_"
 
     ' =========================================================
-    ' 1. Extraer top MAX_CHARTS desde loAL
+    ' 1. Detectar columna clave (RUC/NIT o Cuenta) y TIPO_PERSONA
     ' =========================================================
-    Dim iKey As Long, iDv As Long, iPm As Long, iCl As Long, iMo As Long
-    iKey = GetColIdx(loAL, "Cuenta")
+    Dim iKey As Long, iDv As Long, iPm As Long, iCl As Long, iMo As Long, iTP As Long
+    iKey = GetColIdx(loAL, "RUC/NIT")
+    If iKey = 0 Then iKey = GetColIdx(loAL, "Cuenta")
+    If iKey = 0 Then iKey = 1  ' fallback a primera columna
     iDv  = GetColIdx(loAL, "DESVIACION_MEDIA_%")
     iPm  = GetColIdx(loAL, "PROMEDIO_MONTOS")
     iCl  = GetColIdx(loAL, "CLASE")
     iMo  = GetColIdx(loAL, "MONEDA")
+    iTP  = GetColIdx(loAL, "TIPO_PERSONA")
 
+    ' =========================================================
+    ' 2. Separar en NAT (N) y JUR (J) desde loAL
+    ' =========================================================
     Const BUF As Long = 256
-    Dim aK(BUF) As String, aDv(BUF) As Double, aPm(BUF) As Double
-    Dim aCl(BUF) As String, aMo(BUF) As String
+    Dim nK(BUF) As String, nDv(BUF) As Double, nPm(BUF) As Double
+    Dim nCl(BUF) As String, nMo(BUF) As String
+    Dim jK(BUF) As String, jDv(BUF) As Double, jPm(BUF) As Double
+    Dim jCl(BUF) As String, jMo(BUF) As String
     Dim nCnt As Long: nCnt = 0
+    Dim jCnt As Long: jCnt = 0
 
     Dim arrAL As Variant
     arrAL = loAL.DataBodyRange.Value
 
     Dim ai As Long
     For ai = 1 To UBound(arrAL, 1)
-        If nCnt >= BUF Then Exit For
-        aK(nCnt)  = Trim$(CStr(arrAL(ai, iKey)))
-        aDv(nCnt) = SafeDbl(arrAL(ai, iDv))
-        aPm(nCnt) = SafeDbl(arrAL(ai, iPm))
-        aCl(nCnt) = IIf(iCl > 0, Trim$(CStr(arrAL(ai, iCl))), "")
-        aMo(nCnt) = IIf(iMo > 0, Trim$(CStr(arrAL(ai, iMo))), "")
-        nCnt = nCnt + 1
+        Dim sKeyAL As String: sKeyAL = Trim$(CStr(arrAL(ai, iKey)))
+        If sKeyAL = "" Then GoTo NextAL
+        Dim sDvAL  As Double: sDvAL = SafeDbl(arrAL(ai, iDv))
+        Dim sPmAL  As Double: sPmAL = SafeDbl(arrAL(ai, iPm))
+        Dim sClAL  As String: sClAL = IIf(iCl > 0, Trim$(CStr(arrAL(ai, iCl))), "")
+        Dim sMoAL  As String: sMoAL = IIf(iMo > 0, Trim$(CStr(arrAL(ai, iMo))), "")
+        Dim sTPAL  As String: sTPAL = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
+
+        If sTPAL = "J" Then
+            If jCnt < BUF Then
+                jK(jCnt) = sKeyAL: jDv(jCnt) = sDvAL: jPm(jCnt) = sPmAL
+                jCl(jCnt) = sClAL: jMo(jCnt) = sMoAL
+                jCnt = jCnt + 1
+            End If
+        Else
+            ' N o sin clasificar -> NAT
+            If nCnt < BUF Then
+                nK(nCnt) = sKeyAL: nDv(nCnt) = sDvAL: nPm(nCnt) = sPmAL
+                nCl(nCnt) = sClAL: nMo(nCnt) = sMoAL
+                nCnt = nCnt + 1
+            End If
+        End If
+NextAL:
     Next ai
 
-    SortDescN nCnt, aK, aDv, aPm, aCl, aMo
-    If nCnt > MAX_CHARTS Then nCnt = MAX_CHARTS
+    SortDescN nCnt, nK, nDv, nPm, nCl, nMo
+    SortDescN jCnt, jK, jDv, jPm, jCl, jMo
+    If nCnt > MAX_CHARTS \ 2 Then nCnt = MAX_CHARTS \ 2
+    If jCnt > MAX_CHARTS \ 2 Then jCnt = MAX_CHARTS \ 2
 
     ' =========================================================
-    ' 2. Columnas en loMAIN
+    ' 3. Cargar diccionario Cuenta->RUC/NIT para agregar MAIN
+    '    Solo necesario si la clave en loAL es RUC/NIT
+    ' =========================================================
+    Dim dCuentaDoc As Object
+    Dim keyColName As String: keyColName = loAL.ListColumns(iKey).Name
+    If StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0 Then
+        On Error Resume Next
+        Set dCuentaDoc = modPQ_SAB_MC.BuildCuentaDocDict()
+        On Error GoTo fin
+    End If
+
+    ' =========================================================
+    ' 4. Columnas en loMAIN
     ' =========================================================
     Dim iM_cta As Long, iM_fch As Long, iM_mto As Long
     iM_cta = GetColIdx(loMAIN, "Cuenta")
@@ -476,7 +520,7 @@ Public Sub BuildGraficosAlertasEnHoja( _
     arrM = loMAIN.DataBodyRange.Value
 
     ' =========================================================
-    ' 3. Hoja helper y limpieza de graficos anteriores
+    ' 5. Hoja helper y limpieza de graficos anteriores
     ' =========================================================
     Dim wsh As Worksheet
     Set wsh = EnsureHelperSheet(wb)
@@ -484,60 +528,183 @@ Public Sub BuildGraficosAlertasEnHoja( _
     DeleteChartsByPrefix ws, chartPref
 
     ' =========================================================
-    ' 4. Posicion a la derecha de loAL
+    ' 6. Posicion: dos columnas NAT izquierda / JUR derecha
     ' =========================================================
     Dim lastALCol As Long
     lastALCol = loAL.Range.Column + loAL.Range.Columns.Count
 
-    Dim chartLeft    As Double
-    Dim chartTopBase As Double
-    chartLeft    = ws.Cells(1, lastALCol + 1).Left
-    chartTopBase = ws.Cells(loAL.Range.Row, 1).Top + CHART_TOP_MGN
+    Dim chartLeft1   As Double: chartLeft1   = ws.Cells(1, lastALCol + 1).Left
+    Dim chartLeft2   As Double: chartLeft2   = chartLeft1 + CHART_W + 14
+    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).Top + CHART_TOP_MGN
+
+    Dim cliIdx As Long: cliIdx = 0
 
     ' =========================================================
-    ' 5. Generar graficos
+    ' 7. Graficos NAT (columna izquierda)
     ' =========================================================
     Dim ci As Long
     For ci = 0 To nCnt - 1
+        If nK(ci) = "" Then GoTo NextNAT
 
-        If aK(ci) = "" Then GoTo NextChart
+        Dim bStartN As Long: bStartN = 1 + cliIdx * CLI_BLOCK
 
-        Dim bStart As Long
-        bStart = 1 + ci * CLI_BLOCK
+        Dim minDtN As Date, maxDtN As Date, rowsN As Long
+        rowsN = WriteMontoSeriesByDoc(wsh, bStartN, nK(ci), keyColName, _
+                                      iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
+                                      minDtN, maxDtN)
+        If rowsN = 0 Then GoTo NextNAT
 
-        Dim minDt As Date, maxDt As Date
-        Dim nRows As Long
-        nRows = WriteMontoSeries(wsh, bStart, aK(ci), _
-                                 iM_cta, iM_fch, iM_mto, arrM, _
-                                 minDt, maxDt)
-        If nRows = 0 Then GoTo NextChart
+        Dim axMinN As Double, axMaxN As Double, nMthN As Long, mjUN As Double
+        CalcAxisBounds minDtN, maxDtN, axMinN, axMaxN, nMthN, mjUN
+        WritePromedioSeries wsh, bStartN, CDate(axMinN), CDate(axMaxN), nPm(ci)
 
-        Dim axMin As Double, axMax As Double
-        Dim nMth As Long, mjU As Double
-        CalcAxisBounds minDt, maxDt, axMin, axMax, nMth, mjU
+        Dim titleN As String
+        titleN = "[NAT][" & opLabel & "] " & keyColName & ": " & nK(ci) & _
+                 " | Desviacion: " & Format(nDv(ci), "0.00") & "%"
+        If nCl(ci) <> "" Then titleN = titleN & " | " & nCl(ci)
+        If nMo(ci) <> "" Then titleN = titleN & " | " & nMo(ci)
 
-        WritePromedioSeries wsh, bStart, CDate(axMin), CDate(axMax), aPm(ci)
-
-        Dim titleStr As String
-        titleStr = "[" & opLabel & "] Cuenta: " & aK(ci)
-        If aCl(ci) <> "" Then titleStr = titleStr & " | Clase: " & aCl(ci)
-        If aMo(ci) <> "" Then titleStr = titleStr & " | " & aMo(ci)
-        titleStr = titleStr & " | Desviacion: " & Format(aDv(ci), "0.00") & "%"
-
-        Dim cTop  As Double: cTop  = chartTopBase + CDbl(ci) * (CHART_H + CHART_GAP_H)
-        Dim cName As String: cName = chartPref & Format(ci + 1, "00")
-
-        CreateScatterChart ws, wsh, bStart, nRows, aPm(ci), _
-                           axMin, axMax, mjU, _
-                           chartLeft, cTop, cName, titleStr
-
-NextChart:
+        Dim cTopN As Double: cTopN = chartTopBase + CDbl(ci) * (CHART_H + CHART_GAP_H)
+        CreateScatterChart ws, wsh, bStartN, rowsN, nPm(ci), _
+                           axMinN, axMaxN, mjUN, _
+                           chartLeft1, cTopN, chartPref & "N" & Format(ci + 1, "00"), titleN
+        cliIdx = cliIdx + 1
+NextNAT:
     Next ci
+
+    ' =========================================================
+    ' 8. Graficos JUR (columna derecha)
+    ' =========================================================
+    Dim cj As Long
+    For cj = 0 To jCnt - 1
+        If jK(cj) = "" Then GoTo NextJUR
+
+        Dim bStartJ As Long: bStartJ = 1 + cliIdx * CLI_BLOCK
+
+        Dim minDtJ As Date, maxDtJ As Date, rowsJ As Long
+        rowsJ = WriteMontoSeriesByDoc(wsh, bStartJ, jK(cj), keyColName, _
+                                      iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
+                                      minDtJ, maxDtJ)
+        If rowsJ = 0 Then GoTo NextJUR
+
+        Dim axMinJ As Double, axMaxJ As Double, nMthJ As Long, mjUJ As Double
+        CalcAxisBounds minDtJ, maxDtJ, axMinJ, axMaxJ, nMthJ, mjUJ
+        WritePromedioSeries wsh, bStartJ, CDate(axMinJ), CDate(axMaxJ), jPm(cj)
+
+        Dim titleJ As String
+        titleJ = "[JUR][" & opLabel & "] " & keyColName & ": " & jK(cj) & _
+                 " | Desviacion: " & Format(jDv(cj), "0.00") & "%"
+        If jCl(cj) <> "" Then titleJ = titleJ & " | " & jCl(cj)
+        If jMo(cj) <> "" Then titleJ = titleJ & " | " & jMo(cj)
+
+        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cj) * (CHART_H + CHART_GAP_H)
+        CreateScatterChart ws, wsh, bStartJ, rowsJ, jPm(cj), _
+                           axMinJ, axMaxJ, mjUJ, _
+                           chartLeft2, cTopJ, chartPref & "J" & Format(cj + 1, "00"), titleJ
+        cliIdx = cliIdx + 1
+NextJUR:
+    Next cj
 
 fin:
 End Sub
 
 '=========================================================
+' WriteMontoSeriesByDoc
+' Escribe serie de montos diarios en wsh A-B desde blockStart.
+' Si keyColName = "RUC/NIT" y dCuentaDoc no es Nothing, agrega
+' datos de TODAS las Cuentas que mapean al RUC/NIT dado.
+' Si keyColName = "Cuenta" o no hay dict, busca directamente por Cuenta.
+'=========================================================
+Private Function WriteMontoSeriesByDoc( _
+    ByVal wsh       As Worksheet, _
+    ByVal blockStart As Long, _
+    ByVal docKey    As String, _
+    ByVal keyColName As String, _
+    ByVal iCuenta   As Long, _
+    ByVal iFecha    As Long, _
+    ByVal iMonto    As Long, _
+    ByRef arrM      As Variant, _
+    ByVal dCuentaDoc As Object, _
+    ByRef minDtOut  As Date, _
+    ByRef maxDtOut  As Date) As Long
+
+    On Error GoTo errExit
+
+    ' Determinar si buscamos por Cuenta o por RUC/NIT
+    Dim byDoc As Boolean
+    byDoc = (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0) And _
+            Not (dCuentaDoc Is Nothing) And (dCuentaDoc.Count > 0)
+
+    Dim dDM As Object: Set dDM = CreateObject("Scripting.Dictionary")
+
+    Dim r As Long
+    Dim nRows As Long: nRows = UBound(arrM, 1)
+
+    For r = 1 To nRows
+        Dim sCta As String: sCta = Trim$(CStr(arrM(r, iCuenta)))
+        ' Filtrar: si byDoc, verificar que la Cuenta pertenece al RUC/NIT
+        If byDoc Then
+            If Not dCuentaDoc.Exists(sCta) Then GoTo NextR2
+            Dim rawVal As String: rawVal = CStr(dCuentaDoc(sCta))
+            Dim pp As Long: pp = InStr(rawVal, "|")
+            Dim ctaDoc As String
+            If pp > 0 Then ctaDoc = Left$(rawVal, pp - 1) Else ctaDoc = rawVal
+            If StrComp(ctaDoc, docKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+        Else
+            If StrComp(sCta, docKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+        End If
+
+        Dim rawFecha As Variant: rawFecha = arrM(r, iFecha)
+        If IsEmpty(rawFecha) Or IsNull(rawFecha) Then GoTo NextR2
+        If Not IsDate(rawFecha) And Not IsNumeric(rawFecha) Then GoTo NextR2
+
+        Dim dtVal As Date
+        On Error Resume Next: dtVal = CDate(rawFecha): If Err.Number <> 0 Then Err.Clear: On Error GoTo errExit: GoTo NextR2
+        On Error GoTo errExit
+
+        Dim rawMto As Variant: rawMto = arrM(r, iMonto)
+        If IsEmpty(rawMto) Or IsNull(rawMto) Then GoTo NextR2
+
+        Dim mtoVal As Double
+        On Error Resume Next: mtoVal = CDbl(rawMto): If Err.Number <> 0 Then Err.Clear: On Error GoTo errExit: GoTo NextR2
+        On Error GoTo errExit
+        If mtoVal = 0 Then GoTo NextR2
+
+        Dim dtKey As Long: dtKey = CLng(CDbl(dtVal))
+        If dDM.Exists(dtKey) Then
+            dDM(dtKey) = CDbl(dDM(dtKey)) + mtoVal
+        Else
+            dDM.Add dtKey, mtoVal
+        End If
+NextR2:
+    Next r
+
+    If dDM.Count = 0 Then GoTo errExit
+
+    ' Escribir en hoja helper y calcular min/max
+    Dim nPts As Long: nPts = 0
+    Dim kk As Variant
+    Dim gotMin As Boolean: gotMin = False
+    For Each kk In dDM.Keys
+        Dim dtOut As Date: dtOut = CDate(CLng(kk))
+        If Not gotMin Then
+            minDtOut = dtOut: maxDtOut = dtOut: gotMin = True
+        Else
+            If dtOut < minDtOut Then minDtOut = dtOut
+            If dtOut > maxDtOut Then maxDtOut = dtOut
+        End If
+        wsh.Cells(blockStart + nPts, 1).Value = dtOut
+        wsh.Cells(blockStart + nPts, 1).NumberFormat = "dd/mm/yyyy"
+        wsh.Cells(blockStart + nPts, 2).Value = CDbl(dDM(kk))
+        nPts = nPts + 1
+    Next kk
+
+    WriteMontoSeriesByDoc = nPts
+    Exit Function
+errExit:
+    WriteMontoSeriesByDoc = 0
+End Function
+
 ' PUBLIC: BuildGraficosCMEnHoja
 '
 ' loAL  : ListObject de ALERTAS CM (SAB_CM_ALERTAS_COM o _VEN)
