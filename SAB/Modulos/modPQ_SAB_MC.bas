@@ -627,7 +627,59 @@ Private Sub QuickSortByCol(ByRef arr() As Variant, ByVal lo As Long, ByVal hi As
 End Sub
 
 '======================
-' Alertas en VBA desde loMain
+' Construye diccionario Cuenta -> RUC/NIT desde la tabla Clientes_SAB.
+' Si la tabla no existe devuelve diccionario vacio y registra advertencia en mStageLog.
+'======================
+Private Function BuildCuentaDocDict() As Object
+    Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+    Dim ws As Worksheet, lo As ListObject
+    Dim colCta As Long, colDoc As Long
+    Dim i As Long
+
+    ' Buscar ListObject "Clientes_SAB" en cualquier hoja
+    For Each ws In ThisWorkbook.Worksheets
+        For Each lo In ws.ListObjects
+            If StrComp(lo.Name, "Clientes_SAB", vbTextCompare) = 0 Then
+                If Not lo.DataBodyRange Is Nothing Then
+                    For i = 1 To lo.ListColumns.Count
+                        Select Case Trim$(lo.ListColumns(i).Name)
+                            Case "Cuenta":   colCta = i
+                            Case "RUC/NIT":  colDoc = i
+                        End Select
+                    Next i
+                    If colCta > 0 And colDoc > 0 Then
+                        Dim data As Variant: data = lo.DataBodyRange.Value2
+                        Dim nR As Long: nR = lo.DataBodyRange.Rows.Count
+                        Dim vC As Variant, vD As Variant, sC As String, sD As String
+                        For i = 1 To nR
+                            vC = data(i, colCta)
+                            vD = data(i, colDoc)
+                            If Not (IsEmpty(vC) Or IsNull(vC) Or IsError(vC)) And _
+                               Not (IsEmpty(vD) Or IsNull(vD) Or IsError(vD)) Then
+                                sC = Trim$(CStr(vC))
+                                sD = Trim$(CStr(vD))
+                                If Len(sC) > 0 And Len(sD) > 0 Then
+                                    If Not d.Exists(sC) Then d.Add sC, sD
+                                End If
+                            End If
+                        Next i
+                    End If
+                End If
+                Set BuildCuentaDocDict = d
+                Exit Function
+            End If
+        Next lo
+    Next ws
+
+    ' No se encontro Clientes_SAB
+    If Len(mStageLog) > 0 Then mStageLog = mStageLog & vbCrLf
+    mStageLog = mStageLog & "(!) Clientes_SAB no encontrada: alertas agrupadas por Cuenta"
+    Set BuildCuentaDocDict = d
+End Function
+
+'======================
+' Alertas en VBA desde loMain, agrupadas por RUC/NIT via Clientes_SAB.
+' Si Clientes_SAB no esta cargada, agrupa por Cuenta (fallback silencioso).
 ' which: "DEP" -> columna Deposito  |  "RET" -> columna Retiro
 '======================
 Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
@@ -642,6 +694,10 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     If op <> "DEP" And op <> "RET" Then op = "DEP"
 
     Dim depName As String: depName = "Dep" & Chr(243) & "sito"
+
+    ' Diccionario Cuenta -> RUC/NIT desde Clientes_SAB
+    Dim dCuentaDoc As Object: Set dCuentaDoc = BuildCuentaDocDict()
+    Dim usandoDoc As Boolean: usandoDoc = (dCuentaDoc.Count > 0)
 
     Dim colFecha  As Long: colFecha  = 0
     Dim colCuenta As Long: colCuenta = 0
@@ -670,7 +726,7 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim dMeta As Object: Set dMeta = CreateObject("Scripting.Dictionary")
 
     Dim vM As Variant, dM As Double
-    Dim vC As Variant, sC As String
+    Dim vC As Variant, sCuenta As String, sKey As String
     Dim vF As Variant, dF As Date, lF As Long
     Dim dayKey As String
 
@@ -682,22 +738,29 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
         vC = data(i, colCuenta)
         If IsEmpty(vC) Or IsNull(vC) Or IsError(vC) Then GoTo SkipAl
-        sC = Trim$(CStr(vC))
-        If Len(sC) = 0 Then GoTo SkipAl
+        sCuenta = Trim$(CStr(vC))
+        If Len(sCuenta) = 0 Then GoTo SkipAl
+
+        ' Mapear Cuenta -> RUC/NIT (fallback a Cuenta si no hay match)
+        If usandoDoc And dCuentaDoc.Exists(sCuenta) Then
+            sKey = CStr(dCuentaDoc(sCuenta))
+        Else
+            sKey = sCuenta
+        End If
 
         If colFecha = 0 Then GoTo SkipAl
         vF = data(i, colFecha)
         If Not TryCoerceExcelDate(vF, dF) Then GoTo SkipAl
         lF = CLng(CDbl(CDate(dF)))
 
-        dayKey = sC & "|" & CStr(lF)
+        dayKey = sKey & "|" & CStr(lF)
         If dDay.Exists(dayKey) Then
             dDay(dayKey) = CDbl(dDay(dayKey)) + dM
         Else
             dDay.Add dayKey, dM
         End If
 
-        If Not dMeta.Exists(sC) Then
+        If Not dMeta.Exists(sKey) Then
             Dim sCl As String: sCl = ""
             Dim sMn As String: sMn = ""
             If colClase > 0 Then
@@ -710,7 +773,7 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
                     sMn = Trim$(CStr(data(i, colMoneda)))
                 End If
             End If
-            dMeta.Add sC, sCl & "|" & sMn
+            dMeta.Add sKey, sCl & "|" & sMn
         End If
 SkipAl:
     Next i
@@ -719,36 +782,36 @@ SkipAl:
     Dim dNOp  As Object: Set dNOp  = CreateObject("Scripting.Dictionary")
     Dim dMaxD As Object: Set dMaxD = CreateObject("Scripting.Dictionary")
 
-    Dim kk As Variant, pts() As String, sCta As String, lDate As Long, monDia As Double
+    Dim kk As Variant, pts() As String, sDoc As String, lDate As Long, monDia As Double
     For Each kk In dDay.Keys
         pts    = Split(CStr(kk), "|")
-        sCta   = pts(0)
+        sDoc   = pts(0)
         lDate  = CLng(pts(1))
         monDia = CDbl(dDay(kk))
-        If Not dSum.Exists(sCta) Then
-            dSum.Add sCta, 0#: dNOp.Add sCta, 0&: dMaxD.Add sCta, 0&
+        If Not dSum.Exists(sDoc) Then
+            dSum.Add sDoc, 0#: dNOp.Add sDoc, 0&: dMaxD.Add sDoc, 0&
         End If
-        dSum(sCta)  = CDbl(dSum(sCta)) + monDia
-        dNOp(sCta)  = CLng(dNOp(sCta)) + 1
-        If lDate > CLng(dMaxD(sCta)) Then dMaxD(sCta) = lDate
+        dSum(sDoc)  = CDbl(dSum(sDoc)) + monDia
+        dNOp(sDoc)  = CLng(dNOp(sDoc)) + 1
+        If lDate > CLng(dMaxD(sDoc)) Then dMaxD(sDoc) = lDate
     Next kk
 
-    Dim nCtas As Long: nCtas = dSum.Count
-    If nCtas = 0 Then Exit Function
+    Dim nDocs As Long: nDocs = dSum.Count
+    If nDocs = 0 Then Exit Function
 
-    ReDim outArr(1 To nCtas, 1 To 9) As Variant
+    ReDim outArr(1 To nDocs, 1 To 9) As Variant
     Dim r As Long: r = 0
-    Dim sCta2 As Variant, suma As Double, nOp As Long
+    Dim sDoc2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
     Dim desv As Variant, nivel As Variant
     Dim metaStr As String, mParts() As String
 
-    For Each sCta2 In dSum.Keys
+    For Each sDoc2 In dSum.Keys
         r      = r + 1
-        suma   = CDbl(dSum(sCta2))
-        nOp    = CLng(dNOp(sCta2))
+        suma   = CDbl(dSum(sDoc2))
+        nOp    = CLng(dNOp(sDoc2))
         prom   = IIf(nOp > 0, suma / nOp, 0)
-        ultima = CDbl(dDay(CStr(sCta2) & "|" & CStr(CLng(dMaxD(sCta2)))))
+        ultima = CDbl(dDay(CStr(sDoc2) & "|" & CStr(CLng(dMaxD(sDoc2)))))
 
         If prom <> 0 Then
             desv = ((ultima - prom) / prom) * 100#
@@ -767,10 +830,10 @@ SkipAl:
         End If
 
         metaStr = ""
-        If dMeta.Exists(CStr(sCta2)) Then metaStr = CStr(dMeta(CStr(sCta2)))
+        If dMeta.Exists(CStr(sDoc2)) Then metaStr = CStr(dMeta(CStr(sDoc2)))
         mParts = Split(metaStr, "|")
 
-        outArr(r, 1) = CStr(sCta2)
+        outArr(r, 1) = CStr(sDoc2)
         outArr(r, 2) = mParts(0)
         outArr(r, 3) = IIf(UBound(mParts) >= 1, mParts(1), "")
         outArr(r, 4) = Round(suma,   2)
@@ -779,20 +842,22 @@ SkipAl:
         outArr(r, 7) = Round(ultima, 2)
         outArr(r, 8) = desv
         outArr(r, 9) = nivel
-    Next sCta2
+    Next sDoc2
 
     ClearSheetButKeepName shAl
 
+    ' Encabezado: RUC/NIT si se uso diccionario, Cuenta si fallback
+    Dim keyHdr As String: keyHdr = IIf(usandoDoc, "RUC/NIT", "Cuenta")
     Dim hdrs As Variant
-    hdrs = Array("Cuenta", "CLASE", "MONEDA", "SUMA_MONTOS", "NUM_OPERACIONES", _
+    hdrs = Array(keyHdr, "CLASE", "MONEDA", "SUMA_MONTOS", "NUM_OPERACIONES", _
                  "PROMEDIO_MONTOS", "ULTIMA_OPERACION", "DESVIACION_MEDIA_%", "NIVEL_RIESGO")
     Dim j As Long
     For j = 0 To 8: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
-    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nCtas + 1, 9)).Value = outArr
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 9)).Value = outArr
 
     Dim loAl As ListObject
     Set loAl = shAl.ListObjects.Add(xlSrcRange, _
-                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nCtas + 1, 9)), , xlYes)
+                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 9)), , xlYes)
     On Error Resume Next: loAl.Name = loAlName: On Error GoTo 0
     On Error Resume Next: loAl.TableStyle = TABLE_STYLE: On Error GoTo 0
 
