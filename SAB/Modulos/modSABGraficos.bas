@@ -495,15 +495,13 @@ NextAL:
     If jCnt > MAX_CHARTS \ 2 Then jCnt = MAX_CHARTS \ 2
 
     ' =========================================================
-    ' 3. Cargar diccionario Cuenta->RUC/NIT para agregar MAIN
-    '    Solo necesario si la clave en loAL es RUC/NIT
+    ' 3. Cargar diccionario Cuenta->RUC/NIT directamente desde Clientes_SAB
+    '    Evita llamada cross-modulo que puede fallar silenciosamente
     ' =========================================================
     Dim dCuentaDoc As Object
     Dim keyColName As String: keyColName = loAL.ListColumns(iKey).Name
     If StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0 Then
-        On Error Resume Next
-        Set dCuentaDoc = modPQ_SAB_MC.BuildCuentaDocDict()
-        On Error GoTo fin
+        Set dCuentaDoc = BuildCuentaDocDictLocal()
     End If
 
     ' =========================================================
@@ -609,6 +607,80 @@ fin:
 End Sub
 
 '=========================================================
+' BuildCuentaDocDictLocal
+' Construye diccionario Cuenta -> "RUC/NIT|Tipo" desde Clientes_SAB.
+' Normaliza numeros de cuenta eliminando decimales y Chr(160).
+'=========================================================
+Private Function BuildCuentaDocDictLocal() As Object
+    Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+    Dim ws As Worksheet, lo As ListObject
+    Dim colCta As Long, colDoc As Long, colTipo As Long
+    Dim i As Long
+
+    For Each ws In ThisWorkbook.Worksheets
+        For Each lo In ws.ListObjects
+            If StrComp(lo.Name, "Clientes_SAB", vbTextCompare) = 0 Then
+                If lo.DataBodyRange Is Nothing Then GoTo NotFound
+                colCta = 0: colDoc = 0: colTipo = 0
+                For i = 1 To lo.ListColumns.Count
+                    Dim hdr As String
+                    hdr = UCase$(Replace(Replace(NormStr(lo.ListColumns(i).Name), "/", ""), "-", ""))
+                    If hdr = "CUENTA"   Then colCta  = i
+                    If hdr = "RUCNIT"   Then colDoc  = i
+                    If hdr = "TIPO"     Then colTipo = i
+                Next i
+                If colCta = 0 Or colDoc = 0 Then GoTo NotFound
+                Dim data As Variant: data = lo.DataBodyRange.Value2
+                Dim nR As Long: nR = UBound(data, 1)
+                Dim vC As Variant, vD As Variant, vT As Variant
+                Dim sC As String, sD As String, sT As String
+                For i = 1 To nR
+                    vC = data(i, colCta): vD = data(i, colDoc)
+                    If IsEmpty(vC) Or IsNull(vC) Or IsError(vC) Then GoTo NextCli
+                    If IsEmpty(vD) Or IsNull(vD) Or IsError(vD) Then GoTo NextCli
+                    sC = NormStr(CStr(vC))
+                    sD = NormStr(CStr(vD))
+                    sT = ""
+                    If colTipo > 0 Then
+                        vT = data(i, colTipo)
+                        If Not (IsEmpty(vT) Or IsNull(vT) Or IsError(vT)) Then
+                            sT = UCase$(NormStr(CStr(vT)))
+                        End If
+                    End If
+                    If Len(sC) > 0 And Len(sD) > 0 Then
+                        If Not d.Exists(sC) Then d.Add sC, sD & "|" & sT
+                    End If
+NextCli:
+                Next i
+                Set BuildCuentaDocDictLocal = d
+                Exit Function
+            End If
+        Next lo
+    Next ws
+NotFound:
+    Set BuildCuentaDocDictLocal = d
+End Function
+
+'=========================================================
+' NormStr: limpia Chr(160), recorta, elimina decimales si es numero
+'=========================================================
+Private Function NormStr(ByVal s As String) As String
+    Dim i As Integer
+    For i = 0 To 31: s = Replace(s, Chr(i), ""): Next i
+    s = Replace(s, Chr(160), "")
+    s = Trim$(s)
+    ' Eliminar separadores de miles y decimales si es numero puro
+    If IsNumeric(s) Then
+        Dim d2 As Double: d2 = CDbl(s)
+        If d2 = Int(d2) Then
+            s = CStr(CLng(d2))
+        End If
+    End If
+    ' Para uso como header: normalizar eliminando caracteres no alfanumericos
+    NormStr = s
+End Function
+
+'=========================================================
 ' WriteMontoSeriesByDoc
 ' Escribe serie de montos diarios en wsh A-B desde blockStart.
 ' Si keyColName = "RUC/NIT" y dCuentaDoc no es Nothing, agrega
@@ -634,6 +706,7 @@ Private Function WriteMontoSeriesByDoc( _
     Dim byDoc As Boolean
     byDoc = (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0) And _
             Not (dCuentaDoc Is Nothing) And (dCuentaDoc.Count > 0)
+    Dim normDocKey As String: normDocKey = NormStr(docKey)
 
     Dim dDM As Object: Set dDM = CreateObject("Scripting.Dictionary")
 
@@ -641,17 +714,17 @@ Private Function WriteMontoSeriesByDoc( _
     Dim nRows As Long: nRows = UBound(arrM, 1)
 
     For r = 1 To nRows
-        Dim sCta As String: sCta = Trim$(CStr(arrM(r, iCuenta)))
+        Dim sCta As String: sCta = NormStr(CStr(arrM(r, iCuenta)))
         ' Filtrar: si byDoc, verificar que la Cuenta pertenece al RUC/NIT
         If byDoc Then
             If Not dCuentaDoc.Exists(sCta) Then GoTo NextR2
             Dim rawVal As String: rawVal = CStr(dCuentaDoc(sCta))
             Dim pp As Long: pp = InStr(rawVal, "|")
             Dim ctaDoc As String
-            If pp > 0 Then ctaDoc = Left$(rawVal, pp - 1) Else ctaDoc = rawVal
-            If StrComp(ctaDoc, docKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+            If pp > 0 Then ctaDoc = NormStr(Left$(rawVal, pp - 1)) Else ctaDoc = NormStr(rawVal)
+            If StrComp(ctaDoc, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         Else
-            If StrComp(sCta, docKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+            If StrComp(sCta, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         End If
 
         Dim rawFecha As Variant: rawFecha = arrM(r, iFecha)
