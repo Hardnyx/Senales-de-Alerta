@@ -630,27 +630,32 @@ End Sub
 ' Construye diccionario Cuenta -> RUC/NIT desde la tabla Clientes_SAB.
 ' Si la tabla no existe devuelve diccionario vacio y registra advertencia en mStageLog.
 '======================
-Private Function BuildCuentaDocDict() As Object
+Public Function BuildCuentaDocDict() As Object
     Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
     Dim ws As Worksheet, lo As ListObject
     Dim colCta As Long, colDoc As Long
     Dim i As Long
 
     ' Buscar ListObject "Clientes_SAB" en cualquier hoja
+    ' El diccionario devuelve "RUC/NIT|Tipo" por cada Cuenta
+    Dim colTipo As Long
     For Each ws In ThisWorkbook.Worksheets
         For Each lo In ws.ListObjects
             If StrComp(lo.Name, "Clientes_SAB", vbTextCompare) = 0 Then
                 If Not lo.DataBodyRange Is Nothing Then
+                    colCta = 0: colDoc = 0: colTipo = 0
                     For i = 1 To lo.ListColumns.Count
                         Select Case Trim$(lo.ListColumns(i).Name)
-                            Case "Cuenta":   colCta = i
-                            Case "RUC/NIT":  colDoc = i
+                            Case "Cuenta":   colCta  = i
+                            Case "RUC/NIT":  colDoc  = i
+                            Case "Tipo":     colTipo = i
                         End Select
                     Next i
                     If colCta > 0 And colDoc > 0 Then
                         Dim data As Variant: data = lo.DataBodyRange.Value2
                         Dim nR As Long: nR = lo.DataBodyRange.Rows.Count
                         Dim vC As Variant, vD As Variant, sC As String, sD As String
+                        Dim vT As Variant, sT As String
                         For i = 1 To nR
                             vC = data(i, colCta)
                             vD = data(i, colDoc)
@@ -658,8 +663,15 @@ Private Function BuildCuentaDocDict() As Object
                                Not (IsEmpty(vD) Or IsNull(vD) Or IsError(vD)) Then
                                 sC = Trim$(CStr(vC))
                                 sD = Trim$(CStr(vD))
+                                sT = ""
+                                If colTipo > 0 Then
+                                    vT = data(i, colTipo)
+                                    If Not (IsEmpty(vT) Or IsNull(vT) Or IsError(vT)) Then
+                                        sT = UCase$(Trim$(CStr(vT)))
+                                    End If
+                                End If
                                 If Len(sC) > 0 And Len(sD) > 0 Then
-                                    If Not d.Exists(sC) Then d.Add sC, sD
+                                    If Not d.Exists(sC) Then d.Add sC, sD & "|" & sT
                                 End If
                             End If
                         Next i
@@ -724,6 +736,7 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
     Dim dDay  As Object: Set dDay  = CreateObject("Scripting.Dictionary")
     Dim dMeta As Object: Set dMeta = CreateObject("Scripting.Dictionary")
+    Dim dTipo As Object: Set dTipo = CreateObject("Scripting.Dictionary")
 
     Dim vM As Variant, dM As Double
     Dim vC As Variant, sCuenta As String, sKey As String
@@ -741,9 +754,16 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
         sCuenta = Trim$(CStr(vC))
         If Len(sCuenta) = 0 Then GoTo SkipAl
 
-        ' Mapear Cuenta -> RUC/NIT (fallback a Cuenta si no hay match)
+        ' Mapear Cuenta -> RUC/NIT|Tipo (fallback a Cuenta si no hay match)
+        Dim sRawVal As String: sRawVal = ""
         If usandoDoc And dCuentaDoc.Exists(sCuenta) Then
-            sKey = CStr(dCuentaDoc(sCuenta))
+            sRawVal = CStr(dCuentaDoc(sCuenta))
+            Dim pipPos As Long: pipPos = InStr(sRawVal, "|")
+            If pipPos > 0 Then
+                sKey = Left$(sRawVal, pipPos - 1)
+            Else
+                sKey = sRawVal
+            End If
         Else
             sKey = sCuenta
         End If
@@ -774,6 +794,13 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
                 End If
             End If
             dMeta.Add sKey, sCl & "|" & sMn
+            ' Tipo de persona desde el valor pipe-separated del diccionario
+            Dim sTipoAl As String: sTipoAl = ""
+            If usandoDoc And Len(sRawVal) > 0 Then
+                Dim ppAl As Long: ppAl = InStr(sRawVal, "|")
+                If ppAl > 0 Then sTipoAl = Mid$(sRawVal, ppAl + 1)
+            End If
+            If Not dTipo.Exists(sKey) Then dTipo.Add sKey, sTipoAl
         End If
 SkipAl:
     Next i
@@ -799,7 +826,7 @@ SkipAl:
     Dim nDocs As Long: nDocs = dSum.Count
     If nDocs = 0 Then Exit Function
 
-    ReDim outArr(1 To nDocs, 1 To 9) As Variant
+    ReDim outArr(1 To nDocs, 1 To 10) As Variant
     Dim r As Long: r = 0
     Dim sDoc2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
@@ -841,7 +868,8 @@ SkipAl:
         outArr(r, 6) = Round(prom,   2)
         outArr(r, 7) = Round(ultima, 2)
         outArr(r, 8) = desv
-        outArr(r, 9) = nivel
+        outArr(r, 9)  = nivel
+        outArr(r, 10) = IIf(dTipo.Exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
     Next sDoc2
 
     ClearSheetButKeepName shAl
@@ -850,14 +878,14 @@ SkipAl:
     Dim keyHdr As String: keyHdr = IIf(usandoDoc, "RUC/NIT", "Cuenta")
     Dim hdrs As Variant
     hdrs = Array(keyHdr, "CLASE", "MONEDA", "SUMA_MONTOS", "NUM_OPERACIONES", _
-                 "PROMEDIO_MONTOS", "ULTIMA_OPERACION", "DESVIACION_MEDIA_%", "NIVEL_RIESGO")
+                 "PROMEDIO_MONTOS", "ULTIMA_OPERACION", "DESVIACION_MEDIA_%", "NIVEL_RIESGO", "TIPO_PERSONA")
     Dim j As Long
-    For j = 0 To 8: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
-    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 9)).Value = outArr
+    For j = 0 To 9: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 10)).Value = outArr
 
     Dim loAl As ListObject
     Set loAl = shAl.ListObjects.Add(xlSrcRange, _
-                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 9)), , xlYes)
+                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 10)), , xlYes)
     On Error Resume Next: loAl.Name = loAlName: On Error GoTo 0
     On Error Resume Next: loAl.TableStyle = TABLE_STYLE: On Error GoTo 0
 
