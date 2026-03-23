@@ -683,14 +683,18 @@ Private Function NormStr(ByVal s As String) As String
     For i = 0 To 31: s = Replace(s, Chr(i), ""): Next i
     s = Replace(s, Chr(160), "")
     s = Trim$(s)
-    ' Eliminar separadores de miles y decimales si es numero puro
+    ' Eliminar decimales si es numero entero (ej. "12345678.0" -> "12345678")
+    ' Usar CDec para evitar desbordamiento con RUC/NIT de 11 digitos (>Long max)
     If IsNumeric(s) Then
+        On Error Resume Next
         Dim d2 As Double: d2 = CDbl(s)
-        If d2 = Int(d2) Then
-            s = CStr(CLng(d2))
+        If Err.Number = 0 And d2 = Int(d2) Then
+            Dim dec2 As Variant: dec2 = CDec(d2)
+            If Err.Number = 0 Then s = CStr(dec2)
         End If
+        Err.Clear
+        On Error GoTo 0
     End If
-    ' Para uso como header: normalizar eliminando caracteres no alfanumericos
     NormStr = s
 End Function
 
