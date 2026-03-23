@@ -472,14 +472,17 @@ Public Sub BuildGraficosAlertasEnHoja( _
         Dim sMoAL  As String: sMoAL = IIf(iMo > 0, Trim$(CStr(arrAL(ai, iMo))), "")
         Dim sTPAL  As String: sTPAL = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
 
-        If sTPAL = "J" Then
+        ' J si el tipo empieza por J o es PJ; todo lo demas es NAT
+        Dim isJur As Boolean
+        isJur = (sTPAL = "J" Or Left$(sTPAL, 1) = "J" Or sTPAL = "PJ")
+
+        If isJur Then
             If jCnt < BUF Then
                 jK(jCnt) = sKeyAL: jDv(jCnt) = sDvAL: jPm(jCnt) = sPmAL
                 jCl(jCnt) = sClAL: jMo(jCnt) = sMoAL
                 jCnt = jCnt + 1
             End If
         Else
-            ' N o sin clasificar -> NAT
             If nCnt < BUF Then
                 nK(nCnt) = sKeyAL: nDv(nCnt) = sDvAL: nPm(nCnt) = sPmAL
                 nCl(nCnt) = sClAL: nMo(nCnt) = sMoAL
@@ -491,8 +494,19 @@ NextAL:
 
     SortDescN nCnt, nK, nDv, nPm, nCl, nMo
     SortDescN jCnt, jK, jDv, jPm, jCl, jMo
-    If nCnt > MAX_CHARTS \ 2 Then nCnt = MAX_CHARTS \ 2
-    If jCnt > MAX_CHARTS \ 2 Then jCnt = MAX_CHARTS \ 2
+
+    ' Si no hay clasificacion por tipo (iTP=0 o todo sin clasificar),
+    ' usar MAX_CHARTS completo en NAT en lugar de dividirlo a la mitad
+    Dim capN As Long, capJ As Long
+    If iTP = 0 Or jCnt = 0 Then
+        capN = MAX_CHARTS
+        capJ = 0
+    Else
+        capN = MAX_CHARTS \ 2
+        capJ = MAX_CHARTS \ 2
+    End If
+    If nCnt > capN Then nCnt = capN
+    If jCnt > capJ Then jCnt = capJ
 
     ' =========================================================
     ' 3. Cargar diccionario Cuenta->RUC/NIT directamente desde Clientes_SAB
