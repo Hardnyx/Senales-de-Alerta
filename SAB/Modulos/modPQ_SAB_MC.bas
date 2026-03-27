@@ -369,10 +369,44 @@ Private Function M_MC_RAW(ByVal rutaArchivo As String) As String
     MLine m, "    (st,c) => if List.Contains(Table.ColumnNames(st), c)"
     MLine m, "              then Table.TransformColumns(st, {{c, each ToNum(_), type number}})"
     MLine m, "              else st),"
-    MLine m, "  SAB_MC_RAW = Table.RemoveColumns(Numd, {""__FechaTxt""})"
+    MLine m, "  SinFechaTxt = Table.RemoveColumns(Numd, {""__FechaTxt""}),"
+    MLine m, "  Clientes = try Excel.CurrentWorkbook(){[Name=""Clientes_SAB""]}[Content] otherwise null,"
+    MLine m, "  CliOk = Clientes <> null,"
+    MLine m, "  CliNorm = if not CliOk then null else"
+    MLine m, "    let"
+    MLine m, "      Cols = Table.ColumnNames(Clientes),"
+    MLine m, "      ColCta  = if List.Contains(Cols, ""Cuenta"") then ""Cuenta"" else null,"
+    MLine m, "      ColDoc  = if List.Contains(Cols, ""RUC/NIT"") then ""RUC/NIT"" else null,"
+    MLine m, "      ColTipo = if List.Contains(Cols, ""Tipo"") then ""Tipo"" else null,"
+    MLine m, "      SelCols = List.Select({ColCta, ColDoc, ColTipo}, each _ <> null),"
+    MLine m, "      Sel = Table.SelectColumns(Clientes, SelCols, MissingField.Ignore),"
+    MLine m, "      NormCta = if ColCta=null then Sel else"
+    MLine m, "        Table.TransformColumns(Sel, {{ColCta,"
+    MLine m, "          each let v=Text.Trim(Text.From(_)),"
+    MLine m, "               n=try Number.RoundDown(Number.From(v),0) otherwise null"
+    MLine m, "          in if n<>null then Text.From(n) else v, type text}}),"
+    MLine m, "      NormDoc = if ColDoc=null then NormCta else"
+    MLine m, "        Table.TransformColumns(NormCta, {{ColDoc,"
+    MLine m, "          each Text.Trim(Text.From(_)), type text}}),"
+    MLine m, "      NormTipo = if ColTipo=null then NormDoc else"
+    MLine m, "        Table.TransformColumns(NormDoc, {{ColTipo,"
+    MLine m, "          each Text.Upper(Text.Trim(Text.From(_))), type text}})"
+    MLine m, "    in NormTipo,"
+    MLine m, "  MainNormCta = if not CliOk then SinFechaTxt else"
+    MLine m, "    Table.TransformColumns(SinFechaTxt, {{""Cuenta"","
+    MLine m, "      each let v=Text.Trim(Text.From(_)),"
+    MLine m, "           n=try Number.RoundDown(Number.From(v),0) otherwise null"
+    MLine m, "      in if n<>null then Text.From(n) else v, type text}}),"
+    MLine m, "  Joined = if not CliOk then MainNormCta else"
+    MLine m, "    Table.NestedJoin(MainNormCta, {""Cuenta""}, CliNorm, {""Cuenta""},"
+    MLine m, "      ""_cli"", JoinKind.LeftOuter),"
+    MLine m, "  ExpandCols = if not CliOk then {} else"
+    MLine m, "    List.Select({""RUC/NIT"", ""Tipo""}, each List.Contains(Table.ColumnNames(CliNorm), _)),"
+    MLine m, "  Expanded = if not CliOk then Joined else"
+    MLine m, "    Table.ExpandTableColumn(Joined, ""_cli"", ExpandCols, ExpandCols),"
+    MLine m, "  SAB_MC_RAW = Expanded"
     MLine m, "in"
     MLine m, "  SAB_MC_RAW"
-
     M_MC_RAW = m
 End Function
 
@@ -448,7 +482,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     ' --- Target: 15 columnas canonicas de MAIN ---
     ' Fecha, Transac, Cuenta, Nombre, Ope, Tipo, FPag, Clase,
     ' ALaOrden, Deposito, Retiro, CtaLiq, Estado, Observaciones, Moneda
-    Dim TARGET_COLS As Long: TARGET_COLS = 15
+    Dim TARGET_COLS As Long: TARGET_COLS = 17
 
     ' Indices en outArr (1-based en columna)
     Const O_FECHA  As Long = 1:  Const O_TRANSAC As Long = 2:  Const O_CUENTA As Long = 3
@@ -456,6 +490,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Const O_FPAG   As Long = 7:  Const O_CLASE   As Long = 8:  Const O_ALAOR  As Long = 9
     Const O_DEP    As Long = 10: Const O_RET     As Long = 11: Const O_CTALIQ As Long = 12
     Const O_EST    As Long = 13: Const O_OBS     As Long = 14: Const O_MON    As Long = 15
+    Const O_RUCNIT As Long = 16: Const O_TIPOP   As Long = 17
 
     ' Pre-alocar output (worst case = nRows)
     ReDim outArr(1 To nRows, 1 To TARGET_COLS) As Variant
@@ -465,6 +500,9 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Dim vCl  As Variant, sCl As String
     Dim vDep As Variant, vRet As Variant, nDep As Double, nRet As Double
     Dim hasDep As Boolean, hasRet As Boolean
+
+    ' Diccionario Cuenta -> "RUC/NIT|Tipo" para enriquecer MAIN
+    Dim dMain As Object: Set dMain = BuildCuentaDocDict()
 
     ' Primera pasada: encontrar la fecha maxima en los datos (igual que M_MC_MAIN)
     Dim maxDateRaw As Date: maxDateRaw = 0
@@ -564,6 +602,21 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
         If cObs    > 0 Then outArr(r, O_OBS)      = raw(i, cObs)
         If cMon    > 0 Then outArr(r, O_MON)      = raw(i, cMon)
 
+        ' Enriquecer con RUC/NIT y Tipo desde Clientes_SAB
+        If cCuenta > 0 Then
+            Dim sCtaM As String: sCtaM = CleanStr(CStr(raw(i, cCuenta)))
+            If dMain.exists(sCtaM) Then
+                Dim sRawM As String: sRawM = CStr(dMain(sCtaM))
+                Dim pipM  As Long:   pipM  = InStr(sRawM, "|")
+                If pipM > 0 Then
+                    outArr(r, O_RUCNIT) = CleanStr(Left$(sRawM, pipM - 1))
+                    outArr(r, O_TIPOP)  = UCase$(CleanStr(Mid$(sRawM, pipM + 1)))
+                Else
+                    outArr(r, O_RUCNIT) = CleanStr(sRawM)
+                End If
+            End If
+        End If
+
 SkipRow:
     Next i
 
@@ -578,7 +631,8 @@ SkipRow:
 
     Dim hdrs As Variant
     hdrs = Array("Fecha", "Transac", "Cuenta", "Nombre", "Ope", "Tipo", "FPag", _
-                 "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda")
+                 "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda", _
+                 "RUC/NIT", "TIPO_PERSONA")
     Dim j As Long
     For j = 0 To 14: shMain.Cells(1, j + 1).Value = hdrs(j): Next j
 
