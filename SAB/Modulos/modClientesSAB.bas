@@ -78,28 +78,73 @@ End Sub
 ' ==========================
 Private Function BuildMFormulaClientesSAB(ByVal rutaArchivo As String) As String
     Dim p As String
-    p = Replace(rutaArchivo, """", """""")
+    p = Replace(rutaArchivo, """", """""""")
 
     Dim m As String
-    m = "let" & vbCrLf
+    m = m & "let" & vbCrLf
     m = m & "    Ruta   = """ & p & """," & vbCrLf
     m = m & "    Origen = File.Contents(Ruta)," & vbCrLf
     m = m & "    Csv    = Csv.Document(Origen,[Delimiter=""#(tab)"",Encoding=1252,QuoteStyle=QuoteStyle.Csv])," & vbCrLf
     m = m & "    Prom   = Table.PromoteHeaders(Csv,[PromoteAllScalars=true])," & vbCrLf
-    m = m & "    Fil    = Table.SelectRows(Prom, each" & vbCrLf
-    m = m & "               not ([Cuenta] = null or Text.Trim(Text.From([Cuenta])) = """"))," & vbCrLf
-    m = m & "    Cols   = Table.ColumnNames(Fil)," & vbCrLf
+    m = m & "    AllText = Table.TransformColumnTypes(Prom," & vbCrLf
+    m = m & "        List.Transform(Table.ColumnNames(Prom), each {_, type text}))," & vbCrLf
+    m = m & "    CleanTxt = (s as any) as text =>" & vbCrLf
+    m = m & "        let" & vbCrLf
+    m = m & "            t0 = if s = null then """" else Text.From(s)," & vbCrLf
+    m = m & "            t1 = Text.Replace(t0, Character.FromNumber(160), """")," & vbCrLf
+    m = m & "            t2 = Text.Trim(t1)" & vbCrLf
+    m = m & "        in t2," & vbCrLf
     m = m & "    TrimCol = (t as table, col as text) as table =>" & vbCrLf
     m = m & "        if List.Contains(Table.ColumnNames(t), col)" & vbCrLf
-    m = m & "        then Table.TransformColumns(t, {{col, each Text.Trim(Text.From(_)), type text}})" & vbCrLf
+    m = m & "        then Table.TransformColumns(t, {{col, each CleanTxt(_), type text}})" & vbCrLf
     m = m & "        else t," & vbCrLf
-    m = m & "    T1 = TrimCol(Fil,   ""Cuenta"")," & vbCrLf
-    m = m & "    T2 = TrimCol(T1,    ""RUC/NIT"")," & vbCrLf
-    m = m & "    T3 = TrimCol(T2,    ""Tipo"")," & vbCrLf
-    m = m & "    T4 = TrimCol(T3,    ""Nombre"")," & vbCrLf
-    m = m & "    Result = T4" & vbCrLf
+    m = m & "    T1 = TrimCol(AllText, ""Cuenta"")," & vbCrLf
+    m = m & "    T2 = TrimCol(T1,      ""RUC/NIT"")," & vbCrLf
+    m = m & "    T3 = TrimCol(T2,      ""Tipo"")," & vbCrLf
+    m = m & "    T4 = TrimCol(T3,      ""Nombre"")," & vbCrLf
+    m = m & "    Fil = Table.SelectRows(T4, each" & vbCrLf
+    m = m & "        not ([Cuenta] = null or Text.Trim([Cuenta]) = """"))," & vbCrLf
+    m = m & "    MesNum = (mm as text) as number =>" & vbCrLf
+    m = m & "        let m2 = Text.Upper(Text.Trim(mm))" & vbCrLf
+    m = m & "        in      if m2 = ""ENE"" then 1" & vbCrLf
+    m = m & "           else if m2 = ""FEB"" then 2" & vbCrLf
+    m = m & "           else if m2 = ""MAR"" then 3" & vbCrLf
+    m = m & "           else if m2 = ""ABR"" then 4" & vbCrLf
+    m = m & "           else if m2 = ""MAY"" then 5" & vbCrLf
+    m = m & "           else if m2 = ""JUN"" then 6" & vbCrLf
+    m = m & "           else if m2 = ""JUL"" then 7" & vbCrLf
+    m = m & "           else if m2 = ""AGO"" then 8" & vbCrLf
+    m = m & "           else if m2 = ""SET"" or m2 = ""SEP"" then 9" & vbCrLf
+    m = m & "           else if m2 = ""OCT"" then 10" & vbCrLf
+    m = m & "           else if m2 = ""NOV"" then 11" & vbCrLf
+    m = m & "           else if m2 = ""DIC"" then 12" & vbCrLf
+    m = m & "           else 0," & vbCrLf
+    m = m & "    ParseFecha = (s as any) as any =>" & vbCrLf
+    m = m & "        let" & vbCrLf
+    m = m & "            t  = if s = null then """" else Text.Trim(Text.From(s))," & vbCrLf
+    m = m & "            n  = Text.Length(t)," & vbCrLf
+    m = m & "            ok = n >= 8," & vbCrLf
+    m = m & "            dd  = if ok then try Number.From(Text.Start(t, 2)) otherwise 0 else 0," & vbCrLf
+    m = m & "            mmm = if ok then Text.Middle(t, 2, 3) else """"," & vbCrLf
+    m = m & "            yrT = if ok then Text.End(t, n - 5) else """"," & vbCrLf
+    m = m & "            yrN = try Number.From(yrT) otherwise 0," & vbCrLf
+    m = m & "            yr  = if yrN < 100 then yrN + 2000 else yrN," & vbCrLf
+    m = m & "            mes = if ok then MesNum(mmm) else 0," & vbCrLf
+    m = m & "            res = if ok and dd > 0 and mes > 0 and yr > 1900" & vbCrLf
+    m = m & "                  then try #date(yr, mes, dd) otherwise null" & vbCrLf
+    m = m & "                  else null" & vbCrLf
+    m = m & "        in res," & vbCrLf
+    m = m & "    HasCol = (t as table, col as text) as logical =>" & vbCrLf
+    m = m & "        List.Contains(Table.ColumnNames(t), col)," & vbCrLf
+    m = m & "    F1 = if HasCol(Fil, ""Fecha de Ingreso"")" & vbCrLf
+    m = m & "         then Table.TransformColumns(Fil,   {{""Fecha de Ingreso"", each ParseFecha(_), type date}})" & vbCrLf
+    m = m & "         else Fil," & vbCrLf
+    m = m & "    F2 = if HasCol(F1,  ""Fecha de Bloqueo"")" & vbCrLf
+    m = m & "         then Table.TransformColumns(F1,    {{""Fecha de Bloqueo"", each ParseFecha(_), type date}})" & vbCrLf
+    m = m & "         else F1," & vbCrLf
+    m = m & "    Result = F2" & vbCrLf
     m = m & "in" & vbCrLf
-    m = m & "    Result"
+    m = m & "    Result" & vbCrLf
 
     BuildMFormulaClientesSAB = m
 End Function
