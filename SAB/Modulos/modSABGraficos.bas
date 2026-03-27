@@ -863,8 +863,13 @@ Private Function WriteMontoSeriesByDoc( _
     For r = 1 To nRows
         ' Filtrar por RUC/NIT o Cuenta segun modo
         If useRucCol Then
-            ' Leer directamente la columna RUC/NIT de MAIN (col iRucCol)
+            ' Comparar columna RUC/NIT de MAIN; si esta vacia, fallback a Cuenta
+            ' (ocurre cuando la cuenta no esta en Clientes_SAB y BuildAlertasVBA
+            '  uso la Cuenta directamente como clave en la tabla de alertas)
             Dim sRuc As String: sRuc = NormStr(CStr(arrM(r, iRucCol)))
+            If Len(sRuc) = 0 Then
+                sRuc = NormStr(CStr(arrM(r, iCuenta)))
+            End If
             If StrComp(sRuc, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         ElseIf byDoc Then
             Dim sCta As String: sCta = NormStr(CStr(arrM(r, iCuenta)))
