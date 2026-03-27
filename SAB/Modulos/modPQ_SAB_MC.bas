@@ -600,7 +600,7 @@ SkipRow:
                  "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda", _
                  "RUC/NIT", "TIPO_PERSONA")
     Dim j As Long
-    For j = 0 To 14: shMain.Cells(1, j + 1).Value = hdrs(j): Next j
+    For j = 0 To UBound(hdrs): shMain.Cells(1, j + 1).Value = hdrs(j): Next j
 
     shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, TARGET_COLS)).Value = outArr
 

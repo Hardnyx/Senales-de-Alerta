@@ -407,12 +407,14 @@ Private Function AddAlertTextBox( _
     ByVal cLeft As Double, _
     ByVal cTop As Double, _
     ByVal boxWidth As Double, _
-    ByVal pref As String) As Double
+    ByVal pref As String, _
+    Optional ByVal fixedHeight As Double = 0) As Double
 
     On Error Resume Next
     Dim shp As Shape
+    Dim initH As Double: initH = IIf(fixedHeight > 0, fixedHeight, 60)
     Set shp = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
-                                   cLeft, cTop, boxWidth, 60)
+                                   cLeft, cTop, boxWidth, initH)
     If shp Is Nothing Then AddAlertTextBox = 0: Exit Function
 
     shp.Name = pref & "_AVISO"
@@ -434,10 +436,12 @@ Private Function AddAlertTextBox( _
     shp.Fill.ForeColor.RGB = RGB(255, 235, 238)
     shp.Fill.Visible = msoTrue
 
-    ' Autofit altura
-    On Error Resume Next
-    shp.TextFrame.AutoSize = True
-    On Error GoTo 0
+    ' Autofit altura solo si no se especifico una altura fija
+    If fixedHeight <= 0 Then
+        On Error Resume Next
+        shp.TextFrame.AutoSize = True
+        On Error GoTo 0
+    End If
 
     AddAlertTextBox = shp.Height + 10
 End Function
@@ -556,23 +560,30 @@ NextAL:
 
     ' =========================================================
     ' 3. Cargar diccionario Cuenta->RUC/NIT directamente desde Clientes_SAB
-    '    Evita llamada cross-modulo que puede fallar silenciosamente
     ' =========================================================
-    Dim dCuentaDoc As Object
+    ' 3. Columna clave
+    ' =========================================================
     Dim keyColName As String: keyColName = loAL.ListColumns(iKey).Name
-    If StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0 Then
-        Set dCuentaDoc = BuildCuentaDocDictLocal()
-    End If
 
     ' =========================================================
     ' 4. Columnas en loMAIN
     ' =========================================================
-    Dim iM_cta As Long, iM_fch As Long, iM_mto As Long
+    Dim iM_cta As Long, iM_fch As Long, iM_mto As Long, iM_ruc As Long
     iM_cta = GetColIdx(loMAIN, "Cuenta")
     iM_fch = GetColIdx(loMAIN, "Fecha")
     iM_mto = GetColIdx(loMAIN, IIf(op = "DEP", "Dep" & Chr(243) & "sito", "Retiro"))
+    iM_ruc = GetColIdx(loMAIN, "RUC/NIT")
 
     If iM_cta = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
+
+    ' Si MAIN tiene columna RUC/NIT usarla directamente (sin dict local).
+    ' Fallback: dict local si MAIN es de una version anterior sin esa columna.
+    Dim dCuentaDoc As Object
+    Dim useRucCol As Boolean
+    useRucCol = (iM_ruc > 0) And (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0)
+    If Not useRucCol And StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0 Then
+        Set dCuentaDoc = BuildCuentaDocDictLocal()
+    End If
 
     Dim arrM As Variant
     arrM = loMAIN.DataBodyRange.Value
@@ -598,29 +609,29 @@ NextAL:
     Dim cliIdx As Long: cliIdx = 0
 
     ' =========================================================
-    ' 7. Primer pase: contar cuantos graficos se pueden generar (>= 2 fechas)
+    ' 7. Primer pase: contar generables por tipo separado
     ' =========================================================
-    Dim totalGenerables As Long: totalGenerables = 0
-    Dim ci As Long
+    Dim generablesN As Long: generablesN = 0
+    Dim generablesJ As Long: generablesJ = 0
+    Dim ci As Long, cj As Long
+    Dim testRows As Long
+    Dim testMin As Date, testMax As Date
 
     For ci = 0 To nCnt - 1
         If nK(ci) = "" Then GoTo CountNAT
-        Dim testRows As Long
-        Dim testMin As Date, testMax As Date
         testRows = WriteMontoSeriesByDoc(wsh, 1, nK(ci), keyColName, _
                                          iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
-                                         testMin, testMax)
-        If testRows >= 2 Then totalGenerables = totalGenerables + 1
+                                         testMin, testMax, useRucCol, iM_ruc)
+        If testRows >= 2 Then generablesN = generablesN + 1
 CountNAT:
     Next ci
 
-    Dim cj As Long
     For cj = 0 To jCnt - 1
         If jK(cj) = "" Then GoTo CountJUR
         testRows = WriteMontoSeriesByDoc(wsh, 1, jK(cj), keyColName, _
                                          iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
-                                         testMin, testMax)
-        If testRows >= 2 Then totalGenerables = totalGenerables + 1
+                                         testMin, testMax, useRucCol, iM_ruc)
+        If testRows >= 2 Then generablesJ = generablesJ + 1
 CountJUR:
     Next cj
 
@@ -628,41 +639,35 @@ CountJUR:
     wsh.Cells.Clear
 
     ' =========================================================
-    ' 8. Aviso si hay pocos o ningun grafico generables
+    ' 8. Aviso global si no hay ningun grafico posible
     ' =========================================================
-    Dim avisoHeight As Double: avisoHeight = 0
-    Dim avisoWidth  As Double: avisoWidth  = CHART_W * 2 + 14
+    Dim avisoWidth As Double: avisoWidth = CHART_W * 2 + 14
 
-    If totalGenerables = 0 Then
+    If generablesN = 0 And generablesJ = 0 Then
         Dim msgCero As String
         msgCero = Chr(9888) & " Sin gr" & Chr(225) & "ficos disponibles para [" & opLabel & "]" & vbCrLf & _
                   "Todos los clientes en el top de alertas tienen una " & _
                   Chr(250) & "nica operaci" & Chr(243) & "n registrada. " & _
                   "No es posible calcular tendencia con un solo punto de datos."
-        avisoHeight = AddAlertTextBox(ws, msgCero, chartLeft1, chartTopBase, avisoWidth, chartPref)
+        AddAlertTextBox ws, msgCero, chartLeft1, chartTopBase, avisoWidth, chartPref
         GoTo fin
-    ElseIf totalGenerables < 4 Then
-        Dim msgPoco As String
-        msgPoco = Chr(9888) & " Datos insuficientes para algunos clientes [" & opLabel & "]" & vbCrLf & _
-                  "Solo se generaron " & totalGenerables & " gr" & Chr(225) & _
-                  "fico(s). Los clientes con una " & Chr(250) & "nica fecha de operaci" & _
-                  Chr(243) & "n fueron excluidos por no tener tendencia comparable."
-        avisoHeight = AddAlertTextBox(ws, msgPoco, chartLeft1, chartTopBase, avisoWidth, chartPref)
-        chartTopBase = chartTopBase + avisoHeight
     End If
 
     ' =========================================================
     ' 9. Pase real: generar graficos con >= 2 fechas distintas
     ' =========================================================
+    Dim nIdxPlot As Long: nIdxPlot = 0   ' indice de posicion vertical NAT
+    Dim jIdxPlot As Long: jIdxPlot = 0   ' indice de posicion vertical JUR
+
     For ci = 0 To nCnt - 1
         If nK(ci) = "" Then GoTo NextNAT
 
-        Dim bStartN As Long: bStartN = 1 + cliIdx * CLI_BLOCK
+        Dim bStartN As Long: bStartN = 1 + (nIdxPlot + jIdxPlot) * CLI_BLOCK
 
         Dim minDtN As Date, maxDtN As Date, rowsN As Long
         rowsN = WriteMontoSeriesByDoc(wsh, bStartN, nK(ci), keyColName, _
                                       iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
-                                      minDtN, maxDtN)
+                                      minDtN, maxDtN, useRucCol, iM_ruc)
         If rowsN < 2 Then GoTo NextNAT
 
         Dim axMinN As Double, axMaxN As Double, nMthN As Long, mjUN As Double
@@ -675,23 +680,35 @@ CountJUR:
         If nCl(ci) <> "" Then titleN = titleN & " | " & nCl(ci)
         If nMo(ci) <> "" Then titleN = titleN & " | " & nMo(ci)
 
-        Dim cTopN As Double: cTopN = chartTopBase + CDbl(cliIdx) * (CHART_H + CHART_GAP_H)
+        Dim cTopN As Double: cTopN = chartTopBase + CDbl(nIdxPlot) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartN, rowsN, nPm(ci), _
                            axMinN, axMaxN, mjUN, _
                            chartLeft1, cTopN, chartPref & "N" & Format(ci + 1, "00"), titleN
-        cliIdx = cliIdx + 1
+        nIdxPlot = nIdxPlot + 1
 NextNAT:
     Next ci
+
+    ' Placeholder NAT si no se genero ninguno
+    If generablesN = 0 And jCnt > 0 Then
+        Dim msgNoNAT As String
+        msgNoNAT = "Persona Natural" & vbCrLf & Chr(10) & _
+                   "No fue posible generar gr" & Chr(225) & "ficos para clientes " & _
+                   "Persona Natural en [" & opLabel & "]." & vbCrLf & _
+                   "Los clientes de este tipo no cuentan con suficientes fechas " & _
+                   "de operaci" & Chr(243) & "n distintas para mostrar una tendencia."
+        AddAlertTextBox ws, msgNoNAT, chartLeft1, chartTopBase, CHART_W, _
+                        chartPref & "NAT", CHART_H
+    End If
 
     For cj = 0 To jCnt - 1
         If jK(cj) = "" Then GoTo NextJUR
 
-        Dim bStartJ As Long: bStartJ = 1 + cliIdx * CLI_BLOCK
+        Dim bStartJ As Long: bStartJ = 1 + (nIdxPlot + jIdxPlot) * CLI_BLOCK
 
         Dim minDtJ As Date, maxDtJ As Date, rowsJ As Long
         rowsJ = WriteMontoSeriesByDoc(wsh, bStartJ, jK(cj), keyColName, _
                                       iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
-                                      minDtJ, maxDtJ)
+                                      minDtJ, maxDtJ, useRucCol, iM_ruc)
         If rowsJ < 2 Then GoTo NextJUR
 
         Dim axMinJ As Double, axMaxJ As Double, nMthJ As Long, mjUJ As Double
@@ -704,13 +721,25 @@ NextNAT:
         If jCl(cj) <> "" Then titleJ = titleJ & " | " & jCl(cj)
         If jMo(cj) <> "" Then titleJ = titleJ & " | " & jMo(cj)
 
-        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cliIdx) * (CHART_H + CHART_GAP_H)
+        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(jIdxPlot) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartJ, rowsJ, jPm(cj), _
                            axMinJ, axMaxJ, mjUJ, _
                            chartLeft2, cTopJ, chartPref & "J" & Format(cj + 1, "00"), titleJ
-        cliIdx = cliIdx + 1
+        jIdxPlot = jIdxPlot + 1
 NextJUR:
     Next cj
+
+    ' Placeholder JUR si no se genero ninguno
+    If generablesJ = 0 And nCnt > 0 Then
+        Dim msgNoJUR As String
+        msgNoJUR = "Persona Jur" & Chr(237) & "dica" & vbCrLf & Chr(10) & _
+                   "No fue posible generar gr" & Chr(225) & "ficos para clientes " & _
+                   "Persona Jur" & Chr(237) & "dica en [" & opLabel & "]." & vbCrLf & _
+                   "Los clientes de este tipo no cuentan con suficientes fechas " & _
+                   "de operaci" & Chr(243) & "n distintas para mostrar una tendencia."
+        AddAlertTextBox ws, msgNoJUR, chartLeft2, chartTopBase, CHART_W, _
+                        chartPref & "JUR", CHART_H
+    End If
 
 fin:
 End Sub
@@ -801,23 +830,28 @@ End Function
 ' Si keyColName = "Cuenta" o no hay dict, busca directamente por Cuenta.
 '=========================================================
 Private Function WriteMontoSeriesByDoc( _
-    ByVal wsh       As Worksheet, _
+    ByVal wsh        As Worksheet, _
     ByVal blockStart As Long, _
-    ByVal docKey    As String, _
+    ByVal docKey     As String, _
     ByVal keyColName As String, _
-    ByVal iCuenta   As Long, _
-    ByVal iFecha    As Long, _
-    ByVal iMonto    As Long, _
-    ByRef arrM      As Variant, _
+    ByVal iCuenta    As Long, _
+    ByVal iFecha     As Long, _
+    ByVal iMonto     As Long, _
+    ByRef arrM       As Variant, _
     ByVal dCuentaDoc As Object, _
-    ByRef minDtOut  As Date, _
-    ByRef maxDtOut  As Date) As Long
+    ByRef minDtOut   As Date, _
+    ByRef maxDtOut   As Date, _
+    Optional ByVal useRucCol As Boolean = False, _
+    Optional ByVal iRucCol   As Long    = 0) As Long
 
     On Error GoTo errExit
 
-    ' Determinar si buscamos por Cuenta o por RUC/NIT
+    ' Determinar modo de busqueda
+    ' useRucCol=True: comparar directamente la columna RUC/NIT de arrM (mas preciso)
+    ' byDoc=True:     usar diccionario local (fallback si MAIN no tiene col RUC/NIT)
     Dim byDoc As Boolean
-    byDoc = (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0) And _
+    byDoc = (Not useRucCol) And _
+            (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0) And _
             Not (dCuentaDoc Is Nothing) And (dCuentaDoc.Count > 0)
     Dim normDocKey As String: normDocKey = NormStr(docKey)
 
@@ -827,9 +861,13 @@ Private Function WriteMontoSeriesByDoc( _
     Dim nRows As Long: nRows = UBound(arrM, 1)
 
     For r = 1 To nRows
-        Dim sCta As String: sCta = NormStr(CStr(arrM(r, iCuenta)))
-        ' Filtrar: si byDoc, verificar que la Cuenta pertenece al RUC/NIT
-        If byDoc Then
+        ' Filtrar por RUC/NIT o Cuenta segun modo
+        If useRucCol Then
+            ' Leer directamente la columna RUC/NIT de MAIN (col iRucCol)
+            Dim sRuc As String: sRuc = NormStr(CStr(arrM(r, iRucCol)))
+            If StrComp(sRuc, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+        ElseIf byDoc Then
+            Dim sCta As String: sCta = NormStr(CStr(arrM(r, iCuenta)))
             If Not dCuentaDoc.Exists(sCta) Then GoTo NextR2
             Dim rawVal As String: rawVal = CStr(dCuentaDoc(sCta))
             Dim pp As Long: pp = InStr(rawVal, "|")
@@ -837,7 +875,8 @@ Private Function WriteMontoSeriesByDoc( _
             If pp > 0 Then ctaDoc = NormStr(Left$(rawVal, pp - 1)) Else ctaDoc = NormStr(rawVal)
             If StrComp(ctaDoc, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         Else
-            If StrComp(sCta, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
+            Dim sCtaD As String: sCtaD = NormStr(CStr(arrM(r, iCuenta)))
+            If StrComp(sCtaD, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         End If
 
         Dim rawFecha As Variant: rawFecha = arrM(r, iFecha)
