@@ -397,6 +397,52 @@ errExit:
 End Sub
 
 '=========================================================
+' AddAlertTextBox
+' Agrega un cuadro de texto de aviso en la hoja ws a la posicion indicada.
+' Devuelve la altura del cuadro para poder calcular el offset del siguiente elemento.
+'=========================================================
+Private Function AddAlertTextBox( _
+    ByVal ws As Worksheet, _
+    ByVal msg As String, _
+    ByVal cLeft As Double, _
+    ByVal cTop As Double, _
+    ByVal boxWidth As Double, _
+    ByVal pref As String) As Double
+
+    On Error Resume Next
+    Dim shp As Shape
+    Set shp = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
+                                   cLeft, cTop, boxWidth, 60)
+    If shp Is Nothing Then AddAlertTextBox = 0: Exit Function
+
+    shp.Name = pref & "_AVISO"
+    With shp.TextFrame2
+        .WordWrap = msoTrue
+        .TextRange.Text = msg
+        With .TextRange.Font
+            .Size = 11
+            .Bold = msoTrue
+            .Fill.ForeColor.RGB = RGB(156, 0, 6)
+        End With
+        .TextRange.ParagraphFormat.Alignment = msoAlignCenter
+    End With
+    With shp.Line
+        .Visible = msoTrue
+        .ForeColor.RGB = RGB(255, 199, 206)
+        .Weight = 1.5
+    End With
+    shp.Fill.ForeColor.RGB = RGB(255, 235, 238)
+    shp.Fill.Visible = msoTrue
+
+    ' Autofit altura
+    On Error Resume Next
+    shp.TextFrame.AutoSize = True
+    On Error GoTo 0
+
+    AddAlertTextBox = shp.Height + 10
+End Function
+
+'=========================================================
 ' PUBLIC: BuildGraficosAlertasEnHoja
 '
 ' loAL  : ListObject de ALERTAS MC (SAB_MC_ALERTAS_DEP o _RET)
@@ -552,9 +598,62 @@ NextAL:
     Dim cliIdx As Long: cliIdx = 0
 
     ' =========================================================
-    ' 7. Graficos NAT (columna izquierda)
+    ' 7. Primer pase: contar cuantos graficos se pueden generar (>= 2 fechas)
     ' =========================================================
+    Dim totalGenerables As Long: totalGenerables = 0
     Dim ci As Long
+
+    For ci = 0 To nCnt - 1
+        If nK(ci) = "" Then GoTo CountNAT
+        Dim testRows As Long
+        Dim testMin As Date, testMax As Date
+        testRows = WriteMontoSeriesByDoc(wsh, 1, nK(ci), keyColName, _
+                                         iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
+                                         testMin, testMax)
+        If testRows >= 2 Then totalGenerables = totalGenerables + 1
+CountNAT:
+    Next ci
+
+    Dim cj As Long
+    For cj = 0 To jCnt - 1
+        If jK(cj) = "" Then GoTo CountJUR
+        testRows = WriteMontoSeriesByDoc(wsh, 1, jK(cj), keyColName, _
+                                         iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
+                                         testMin, testMax)
+        If testRows >= 2 Then totalGenerables = totalGenerables + 1
+CountJUR:
+    Next cj
+
+    ' Limpiar helper antes del pase real
+    wsh.Cells.Clear
+
+    ' =========================================================
+    ' 8. Aviso si hay pocos o ningun grafico generables
+    ' =========================================================
+    Dim avisoHeight As Double: avisoHeight = 0
+    Dim avisoWidth  As Double: avisoWidth  = CHART_W * 2 + 14
+
+    If totalGenerables = 0 Then
+        Dim msgCero As String
+        msgCero = Chr(9888) & " Sin gr" & Chr(225) & "ficos disponibles para [" & opLabel & "]" & vbCrLf & _
+                  "Todos los clientes en el top de alertas tienen una " & _
+                  Chr(250) & "nica operaci" & Chr(243) & "n registrada. " & _
+                  "No es posible calcular tendencia con un solo punto de datos."
+        avisoHeight = AddAlertTextBox(ws, msgCero, chartLeft1, chartTopBase, avisoWidth, chartPref)
+        GoTo fin
+    ElseIf totalGenerables < 4 Then
+        Dim msgPoco As String
+        msgPoco = Chr(9888) & " Datos insuficientes para algunos clientes [" & opLabel & "]" & vbCrLf & _
+                  "Solo se generaron " & totalGenerables & " gr" & Chr(225) & _
+                  "fico(s). Los clientes con una " & Chr(250) & "nica fecha de operaci" & _
+                  Chr(243) & "n fueron excluidos por no tener tendencia comparable."
+        avisoHeight = AddAlertTextBox(ws, msgPoco, chartLeft1, chartTopBase, avisoWidth, chartPref)
+        chartTopBase = chartTopBase + avisoHeight
+    End If
+
+    ' =========================================================
+    ' 9. Pase real: generar graficos con >= 2 fechas distintas
+    ' =========================================================
     For ci = 0 To nCnt - 1
         If nK(ci) = "" Then GoTo NextNAT
 
@@ -564,7 +663,7 @@ NextAL:
         rowsN = WriteMontoSeriesByDoc(wsh, bStartN, nK(ci), keyColName, _
                                       iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
                                       minDtN, maxDtN)
-        If rowsN = 0 Then GoTo NextNAT
+        If rowsN < 2 Then GoTo NextNAT
 
         Dim axMinN As Double, axMaxN As Double, nMthN As Long, mjUN As Double
         CalcAxisBounds minDtN, maxDtN, axMinN, axMaxN, nMthN, mjUN
@@ -576,7 +675,7 @@ NextAL:
         If nCl(ci) <> "" Then titleN = titleN & " | " & nCl(ci)
         If nMo(ci) <> "" Then titleN = titleN & " | " & nMo(ci)
 
-        Dim cTopN As Double: cTopN = chartTopBase + CDbl(ci) * (CHART_H + CHART_GAP_H)
+        Dim cTopN As Double: cTopN = chartTopBase + CDbl(cliIdx) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartN, rowsN, nPm(ci), _
                            axMinN, axMaxN, mjUN, _
                            chartLeft1, cTopN, chartPref & "N" & Format(ci + 1, "00"), titleN
@@ -584,10 +683,6 @@ NextAL:
 NextNAT:
     Next ci
 
-    ' =========================================================
-    ' 8. Graficos JUR (columna derecha)
-    ' =========================================================
-    Dim cj As Long
     For cj = 0 To jCnt - 1
         If jK(cj) = "" Then GoTo NextJUR
 
@@ -597,7 +692,7 @@ NextNAT:
         rowsJ = WriteMontoSeriesByDoc(wsh, bStartJ, jK(cj), keyColName, _
                                       iM_cta, iM_fch, iM_mto, arrM, dCuentaDoc, _
                                       minDtJ, maxDtJ)
-        If rowsJ = 0 Then GoTo NextJUR
+        If rowsJ < 2 Then GoTo NextJUR
 
         Dim axMinJ As Double, axMaxJ As Double, nMthJ As Long, mjUJ As Double
         CalcAxisBounds minDtJ, maxDtJ, axMinJ, axMaxJ, nMthJ, mjUJ
@@ -609,7 +704,7 @@ NextNAT:
         If jCl(cj) <> "" Then titleJ = titleJ & " | " & jCl(cj)
         If jMo(cj) <> "" Then titleJ = titleJ & " | " & jMo(cj)
 
-        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cj) * (CHART_H + CHART_GAP_H)
+        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cliIdx) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartJ, rowsJ, jPm(cj), _
                            axMinJ, axMaxJ, mjUJ, _
                            chartLeft2, cTopJ, chartPref & "J" & Format(cj + 1, "00"), titleJ
