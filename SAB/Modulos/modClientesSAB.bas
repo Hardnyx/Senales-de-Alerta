@@ -11,7 +11,7 @@ Public Sub CrearQueryClientesSAB(ByVal rutaArchivo As String, Optional ByVal sho
     On Error GoTo EH
 
     If Len(Trim$(rutaArchivo)) = 0 Then
-        Err.Raise vbObjectError + 1, , "Ruta de archivo vacía."
+        Err.Raise vbObjectError + 1, , "Ruta de archivo vac" & Chr(237) & "a."
     End If
     If Dir(rutaArchivo, vbNormal) = "" Then
         Err.Raise vbObjectError + 2, , "El archivo no existe: " & rutaArchivo
@@ -20,10 +20,13 @@ Public Sub CrearQueryClientesSAB(ByVal rutaArchivo As String, Optional ByVal sho
     Dim wb As Workbook
     Set wb = ThisWorkbook
 
-    ' 1) Crear o actualizar la consulta de Power Query
+    ' 1) Limpiar conexion anterior antes de recrear la consulta
+    PurgeOldConnection wb
+
+    ' 2) Crear o actualizar la consulta de Power Query
     EnsurePQClientesSAB wb, rutaArchivo
 
-    ' 2) Crear hoja y cargar datos en tabla vinculada a la consulta
+    ' 3) Crear hoja y cargar datos en tabla vinculada a la consulta
     LoadClientesSAB wb, showMsgs
 
     Exit Sub
@@ -32,6 +35,19 @@ EH:
     If showMsgs Then
         MsgBox "Error al cargar Clientes SAB: " & Err.Number & " - " & Err.Description, vbCritical
     End If
+End Sub
+
+' ==========================
+' Elimina la conexion OLEDB huerfana si existe
+' ==========================
+Private Sub PurgeOldConnection(ByVal wb As Workbook)
+    Dim conn As WorkbookConnection
+    On Error Resume Next
+    Set conn = wb.Connections("PQ_" & PQ_NAME)
+    If Not conn Is Nothing Then conn.Delete
+    Set conn = wb.Connections(PQ_NAME)
+    If Not conn Is Nothing Then conn.Delete
+    On Error GoTo 0
 End Sub
 
 ' ==========================
@@ -47,7 +63,7 @@ Private Sub EnsurePQClientesSAB(ByVal wb As Workbook, ByVal rutaArchivo As Strin
     On Error GoTo 0
 
     If q Is Nothing Then
-        wb.Queries.Add name:=PQ_NAME, Formula:=m
+        wb.Queries.Add Name:=PQ_NAME, Formula:=m
     Else
         q.Formula = m
     End If
@@ -55,9 +71,10 @@ End Sub
 
 ' ==========================
 ' M de Power Query para Clientes SAB
-' - Lee archivo tabulado
+' - Lee archivo tabulado (TSV, encoding 1252)
 ' - Promueve encabezados
-' - Filtra filas sin "Cuenta" (elimina la fila "Número de Cuentas: 4920")
+' - Trim a columnas clave: Cuenta, RUC/NIT, Tipo, Nombre
+' - Filtra filas sin Cuenta valida
 ' ==========================
 Private Function BuildMFormulaClientesSAB(ByVal rutaArchivo As String) As String
     Dim p As String
@@ -65,14 +82,24 @@ Private Function BuildMFormulaClientesSAB(ByVal rutaArchivo As String) As String
 
     Dim m As String
     m = "let" & vbCrLf
-    m = m & "    Ruta = """ & p & """," & vbCrLf
+    m = m & "    Ruta   = """ & p & """," & vbCrLf
     m = m & "    Origen = File.Contents(Ruta)," & vbCrLf
-    m = m & "    Csv = Csv.Document(Origen,[Delimiter=""#(tab)"",Encoding=1252,QuoteStyle=QuoteStyle.Csv])," & vbCrLf
-    m = m & "    Prom = Table.PromoteHeaders(Csv,[PromoteAllScalars=true])," & vbCrLf
-    m = m & "    Fil = Table.SelectRows(Prom, each " & _
-                "not ( [Cuenta] = null or Text.Trim(Text.From([Cuenta])) = """" ))" & vbCrLf
+    m = m & "    Csv    = Csv.Document(Origen,[Delimiter=""#(tab)"",Encoding=1252,QuoteStyle=QuoteStyle.Csv])," & vbCrLf
+    m = m & "    Prom   = Table.PromoteHeaders(Csv,[PromoteAllScalars=true])," & vbCrLf
+    m = m & "    Fil    = Table.SelectRows(Prom, each" & vbCrLf
+    m = m & "               not ([Cuenta] = null or Text.Trim(Text.From([Cuenta])) = """"""))," & vbCrLf
+    m = m & "    Cols   = Table.ColumnNames(Fil)," & vbCrLf
+    m = m & "    TrimCol = (t as table, col as text) as table =>" & vbCrLf
+    m = m & "        if List.Contains(Table.ColumnNames(t), col)" & vbCrLf
+    m = m & "        then Table.TransformColumns(t, {{col, each Text.Trim(Text.From(_)), type text}})" & vbCrLf
+    m = m & "        else t," & vbCrLf
+    m = m & "    T1 = TrimCol(Fil,   ""Cuenta"")," & vbCrLf
+    m = m & "    T2 = TrimCol(T1,    ""RUC/NIT"")," & vbCrLf
+    m = m & "    T3 = TrimCol(T2,    ""Tipo"")," & vbCrLf
+    m = m & "    T4 = TrimCol(T3,    ""Nombre"")," & vbCrLf
+    m = m & "    Result = T4" & vbCrLf
     m = m & "in" & vbCrLf
-    m = m & "    Fil"
+    m = m & "    Result"
 
     BuildMFormulaClientesSAB = m
 End Function
@@ -84,7 +111,6 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
     Dim sh As Worksheet
     Dim lo As ListObject
     Dim qt As QueryTable
-    Dim conn As String
 
     ' 1) Hoja Clientes_SAB
     On Error Resume Next
@@ -93,47 +119,55 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
 
     If sh Is Nothing Then
         Set sh = wb.Worksheets.Add(After:=wb.Sheets(wb.Sheets.Count))
-        sh.name = SH_NAME
+        sh.Name = SH_NAME
     Else
         sh.Cells.Clear
     End If
 
-    ' 2) Limpiar objetos previos
+    ' 2) Limpiar ListObjects y QueryTables previos en la hoja
     On Error Resume Next
-    For Each lo In sh.ListObjects
-        lo.Delete
-    Next lo
-
-    For Each qt In sh.QueryTables
-        qt.Delete
-    Next qt
+    For Each lo In sh.ListObjects:  lo.Delete:  Next lo
+    For Each qt In sh.QueryTables:  qt.Delete:  Next qt
     On Error GoTo 0
 
-    ' 3) Crear ListObject vinculado a la consulta PQ_Clientes_SAB
-    conn = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;" & _
-           "Location=" & PQ_NAME & ";Extended Properties="""";"
+    ' 3) Conexion OLEDB hacia la consulta PQ
+    Dim connStr As String
+    connStr = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;" & _
+              "Location=" & PQ_NAME & ";Extended Properties="""";"
 
+    Dim conn As WorkbookConnection
+    On Error Resume Next
+    Set conn = wb.Connections.Add2( _
+        "PQ_" & PQ_NAME, "", connStr, _
+        "SELECT * FROM [" & PQ_NAME & "]", xlCmdSql)
+    On Error GoTo 0
+
+    ' 4) ListObject vinculado a la conexion (xlSrcExternal = 1)
     Set lo = sh.ListObjects.Add( _
-        SourceType:=0, _
+        SourceType:=xlSrcExternal, _
         Source:=conn, _
-        Destination:=sh.Range("A1") _
-    )
+        LinkSource:=True, _
+        XlListObjectHasHeaders:=xlYes, _
+        Destination:=sh.Range("A1"))
 
+    On Error Resume Next
     With lo.QueryTable
-        .CommandType = xlCmdSql
-        .CommandText = "SELECT * FROM [" & PQ_NAME & "]"
-        .BackgroundQuery = False
-        .RefreshStyle = xlInsertDeleteCells
-        .AdjustColumnWidth = True
+        .BackgroundQuery    = False
+        .RefreshStyle       = xlOverwriteCells
+        .AdjustColumnWidth  = True
         .PreserveColumnInfo = True
-        .Refresh
+        .Refresh BackgroundQuery:=False
     End With
+    Application.CalculateUntilAsyncQueriesDone
+    On Error GoTo 0
 
-    ' 4) Nombre y estilo de tabla
-    lo.name = LO_NAME
-    lo.TableStyle = "TableStyleLight14"
+    ' 5) Nombre y estilo
+    On Error Resume Next
+    lo.Name         = LO_NAME
+    lo.TableStyle   = "TableStyleLight14"
+    On Error GoTo 0
 
-    ' 5) Dejar visible la hoja y posicionarse en A1
+    ' 6) Posicion
     sh.Activate
     sh.Range("A1").Select
 
@@ -141,5 +175,3 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
         MsgBox "Clientes SAB cargados correctamente en la hoja '" & SH_NAME & "'.", vbInformation
     End If
 End Sub
-
-
