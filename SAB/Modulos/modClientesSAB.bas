@@ -87,7 +87,7 @@ Private Function BuildMFormulaClientesSAB(ByVal rutaArchivo As String) As String
     m = m & "    Csv    = Csv.Document(Origen,[Delimiter=""#(tab)"",Encoding=1252,QuoteStyle=QuoteStyle.Csv])," & vbCrLf
     m = m & "    Prom   = Table.PromoteHeaders(Csv,[PromoteAllScalars=true])," & vbCrLf
     m = m & "    Fil    = Table.SelectRows(Prom, each" & vbCrLf
-    m = m & "               not ([Cuenta] = null or Text.Trim(Text.From([Cuenta])) = """"""))," & vbCrLf
+    m = m & "               not ([Cuenta] = null or Text.Trim(Text.From([Cuenta])) = """"))," & vbCrLf
     m = m & "    Cols   = Table.ColumnNames(Fil)," & vbCrLf
     m = m & "    TrimCol = (t as table, col as text) as table =>" & vbCrLf
     m = m & "        if List.Contains(Table.ColumnNames(t), col)" & vbCrLf
@@ -108,6 +108,7 @@ End Function
 ' Crea hoja, ListObject y refresca desde PQ_Clientes_SAB
 ' ==========================
 Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
+    On Error GoTo EH_Load
     Dim sh As Worksheet
     Dim lo As ListObject
     Dim qt As QueryTable
@@ -174,4 +175,14 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
     If showMsgs Then
         MsgBox "Clientes SAB cargados correctamente en la hoja '" & SH_NAME & "'.", vbInformation
     End If
+    Exit Sub
+
+EH_Load:
+    Dim errMsg As String
+    errMsg = "Error al cargar datos desde Power Query." & vbCrLf & vbCrLf & _
+             "Numero: " & Err.Number & vbCrLf & _
+             "Descripcion: " & Err.Description & vbCrLf & vbCrLf & _
+             "Verifique que el archivo exista, que la ruta sea correcta " & _
+             "y que Power Query pueda acceder al archivo."
+    If showMsgs Then MsgBox errMsg, vbCritical, "Error - Clientes SAB"
 End Sub
