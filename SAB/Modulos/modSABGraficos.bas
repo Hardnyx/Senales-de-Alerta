@@ -466,7 +466,7 @@ Public Sub BuildGraficosAlertasEnHoja( _
     ByVal which  As String, _
     ByVal suf    As String)
 
-    On Error GoTo fin
+    On Error GoTo ErrBuild
 
     If loAL Is Nothing Then Exit Sub
     If loAL.DataBodyRange Is Nothing Then Exit Sub
@@ -608,6 +608,9 @@ NextAL:
 
     Dim cliIdx As Long: cliIdx = 0
 
+    ' Diagnostico: mostrar estado de columnas clave
+    Debug.Print "[SABGraficos] op=" & op & " iM_cta=" & iM_cta & " iM_fch=" & iM_fch & " iM_mto=" & iM_mto & " iM_ruc=" & iM_ruc & " useRucCol=" & useRucCol & " keyColName=" & keyColName
+
     ' =========================================================
     ' 7. Primer pase: contar generables por tipo separado
     ' =========================================================
@@ -634,6 +637,8 @@ CountNAT:
         If testRows >= 2 Then generablesJ = generablesJ + 1
 CountJUR:
     Next cj
+
+    Debug.Print "[SABGraficos] nCnt=" & nCnt & " jCnt=" & jCnt & " generablesN=" & generablesN & " generablesJ=" & generablesJ
 
     ' Limpiar helper antes del pase real
     wsh.Cells.Clear
@@ -740,6 +745,15 @@ NextJUR:
         AddAlertTextBox ws, msgNoJUR, chartLeft2, chartTopBase, CHART_W, _
                         chartPref & "JUR", CHART_H
     End If
+
+    Exit Sub
+
+ErrBuild:
+    Dim errN As Long: errN = Err.Number
+    Dim errD As String: errD = Err.Description
+    MsgBox "Error en BuildGraficosAlertasEnHoja [" & op & "]" & vbCrLf & _
+           "Numero: " & errN & vbCrLf & _
+           "Descripcion: " & errD, vbCritical, "SAB Graficos"
 
 fin:
 End Sub
