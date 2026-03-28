@@ -26,8 +26,8 @@ Private Const CHART_W       As Double = 510
 Private Const CHART_H       As Double = 255
 Private Const CHART_GAP_H   As Double = 10
 Private Const CHART_TOP_MGN As Double = 30
-Private Const MAX_CHARTS    As Long   = 10
-Private Const CLI_BLOCK     As Long   = 400
+Private Const MAX_CHARTS    As Long = 10
+Private Const CLI_BLOCK     As Long = 400
 
 '=========================================================
 ' Texto / columnas
@@ -95,8 +95,8 @@ End Function
 
 Private Function NiceFloor(ByVal v As Double) As Double
     If v <= 0 Then NiceFloor = 1: Exit Function
-    Dim mag As Double: mag = 10 ^ Int(Log(v) / Log(10))
-    Dim m As Double:   m   = v / mag
+    Dim mag As Double: mag = 10 ^ Int(log(v) / log(10))
+    Dim m As Double:   m = v / mag
     Dim niceM As Double
     If m >= 5 Then
         niceM = 5
@@ -133,7 +133,7 @@ Private Function EnsureHelperSheet(ByVal wb As Workbook, ByVal shName As String)
     Set wsh = wb.Worksheets(shName)
     On Error GoTo 0
     If wsh Is Nothing Then
-        Set wsh = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
+        Set wsh = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.count))
         wsh.Name = shName
     Else
         wsh.Cells.Clear
@@ -151,7 +151,7 @@ Private Sub SortDescN(ByVal n As Long, _
     For i = 0 To n - 2
         For j = 0 To n - i - 2
             If dv(j) < dv(j + 1) Then
-                ts = k(j):  k(j)  = k(j + 1):  k(j + 1)  = ts
+                ts = k(j):  k(j) = k(j + 1):   k(j + 1) = ts
                 tf = dv(j): dv(j) = dv(j + 1): dv(j + 1) = tf
                 tf = pm(j): pm(j) = pm(j + 1): pm(j + 1) = tf
                 ts = cl(j): cl(j) = cl(j + 1): cl(j + 1) = ts
@@ -203,7 +203,7 @@ Private Function WriteMontoSeries( _
 
         Dim dk As String
         dk = CStr(CLng(CDbl(dtVal)))
-        If dDM.Exists(dk) Then
+        If dDM.exists(dk) Then
             dDM(dk) = dDM(dk) + mVal
         Else
             dDM.Add dk, mVal
@@ -211,13 +211,13 @@ Private Function WriteMontoSeries( _
 NextR:
     Next r
 
-    If dDM.Count = 0 Then WriteMontoSeries = 0: Exit Function
+    If dDM.count = 0 Then WriteMontoSeries = 0: Exit Function
 
     Dim sers() As Long
-    ReDim sers(dDM.Count - 1)
+    ReDim sers(dDM.count - 1)
     Dim kk As Long: kk = 0
     Dim vk As Variant
-    For Each vk In dDM.Keys
+    For Each vk In dDM.keys
         sers(kk) = CLng(vk): kk = kk + 1
     Next vk
 
@@ -258,11 +258,11 @@ Private Sub WritePromedioSeries( _
     ByVal axMaxDate As Date, _
     ByVal promedio As Double)
 
-    wsh.Cells(blockStart,     4).Value        = axMinDate
-    wsh.Cells(blockStart + 1, 4).Value        = axMaxDate
-    wsh.Cells(blockStart,     5).Value        = promedio
-    wsh.Cells(blockStart + 1, 5).Value        = promedio
-    wsh.Cells(blockStart,     4).NumberFormat = "dd/mm/yyyy"
+    wsh.Cells(blockStart, 4).Value = axMinDate
+    wsh.Cells(blockStart + 1, 4).Value = axMaxDate
+    wsh.Cells(blockStart, 5).Value = promedio
+    wsh.Cells(blockStart + 1, 5).Value = promedio
+    wsh.Cells(blockStart, 4).NumberFormat = "dd/mm/yyyy"
     wsh.Cells(blockStart + 1, 4).NumberFormat = "dd/mm/yyyy"
 End Sub
 
@@ -291,7 +291,7 @@ Private Sub CalcAxisBounds( _
     nMonths = (maxY - minY) * 12 + (maxM - minM)
     If nMonths < 1 Then nMonths = 1
 
-    majorUnit = (axMax - axMin) / CDbl(nMonths)
+    majorUnit = Int((axMax - axMin - 1) / CDbl(nMonths)) + 1
 End Sub
 
 '=========================================================
@@ -322,28 +322,28 @@ Private Sub CreateScatterChart( _
     With co.Chart
         .ChartType = xlXYScatterLines
 
-        Do While .SeriesCollection.Count > 0
+        Do While .SeriesCollection.count > 0
             .SeriesCollection(1).Delete
         Loop
 
-        Dim s1 As Series
-        Set s1        = .SeriesCollection.NewSeries
-        s1.Name       = "Monto"
-        s1.XValues    = wsh.Range(wsh.Cells(bStart, 1), wsh.Cells(bEnd, 1))
-        s1.Values     = wsh.Range(wsh.Cells(bStart, 2), wsh.Cells(bEnd, 2))
+        Dim s1 As series
+        Set s1 = .SeriesCollection.NewSeries
+        s1.Name = "Monto"
+        s1.XValues = wsh.Range(wsh.Cells(bStart, 1), wsh.Cells(bEnd, 1))
+        s1.Values = wsh.Range(wsh.Cells(bStart, 2), wsh.Cells(bEnd, 2))
         s1.MarkerStyle = xlMarkerStyleDiamond
-        s1.MarkerSize  = 5
+        s1.MarkerSize = 5
 
-        Dim s2 As Series
-        Set s2     = .SeriesCollection.NewSeries
-        s2.Name    = "Promedio: " & Format(promedio, "#,##0.00")
+        Dim s2 As series
+        Set s2 = .SeriesCollection.NewSeries
+        s2.Name = "Promedio: " & Format(promedio, "#,##0.00")
         s2.XValues = wsh.Range(wsh.Cells(bStart, 4), wsh.Cells(bStart + 1, 4))
-        s2.Values  = wsh.Range(wsh.Cells(bStart, 5), wsh.Cells(bStart + 1, 5))
+        s2.Values = wsh.Range(wsh.Cells(bStart, 5), wsh.Cells(bStart + 1, 5))
         s2.MarkerStyle = xlMarkerStyleNone
-        With s2.Format.Line
-            .DashStyle     = msoLineDash
+        With s2.Format.line
+            .DashStyle = msoLineDash
             .ForeColor.RGB = RGB(237, 125, 49)
-            .Weight        = 1.5
+            .Weight = 1.5
         End With
 
         .HasTitle = True
@@ -356,39 +356,40 @@ Private Sub CreateScatterChart( _
         Dim axX As Axis
         Set axX = .Axes(xlCategory)
         With axX
-            .MinimumScaleIsAuto            = False
-            .MaximumScaleIsAuto            = False
-            .MinimumScale                  = axMin
-            .MaximumScale                  = axMax
-            .MajorUnitIsAuto               = False
-            .MajorUnit                     = majorUnit
-            .MajorTickMark                 = xlOutside
-            .MinorTickMark                 = xlNone
+            .MinimumScaleIsAuto = False
+            .MaximumScaleIsAuto = False
+            .MinimumScale = axMin
+            .MaximumScale = axMax
+            .MajorUnitIsAuto = False
+            .majorUnit = majorUnit
+            .MajorTickMark = xlOutside
+            .MinorTickMark = xlNone
             .TickLabels.NumberFormatLinked = False
-            .TickLabels.NumberFormat       = "[$-409]mmm"". ""yy"
-            .TickLabels.Font.Size          = 10
+            .TickLabels.NumberFormat = "[$-409]mmm"". ""yy"
+            .TickLabels.Font.Size = 10
         End With
 
         Dim axY As Axis
         Set axY = .Axes(xlValue)
         With axY
-            .MajorUnitIsAuto         = True
+            .MajorUnitIsAuto = True
             .TickLabels.NumberFormat = "#,##0"
-            .TickLabels.Font.Size    = 10
+            .TickLabels.Font.Size = 10
         End With
 
         .HasLegend = True
         With .Legend
             .Font.Size = 10
-            .Position  = xlLegendPositionRight
+            .Position = xlLegendPositionRight
         End With
 
         .ChartArea.Border.LineStyle = xlContinuous
-        .ChartArea.Border.Color     = RGB(190, 190, 190)
-        .ChartArea.Border.Weight    = xlHairline
+        .ChartArea.Border.Color = RGB(190, 190, 190)
+        .ChartArea.Border.Weight = xlHairline
 
         On Error Resume Next
         .PlotArea.Left = 58
+        .PlotArea.width = CHART_W - 58 - 130  ' nuevo
         On Error GoTo 0
     End With
 
@@ -428,7 +429,7 @@ Private Function AddAlertTextBox( _
         End With
         .TextRange.ParagraphFormat.Alignment = msoAlignCenter
     End With
-    With shp.Line
+    With shp.line
         .Visible = msoTrue
         .ForeColor.RGB = RGB(255, 199, 206)
         .Weight = 1.5
@@ -443,7 +444,7 @@ Private Function AddAlertTextBox( _
         On Error GoTo 0
     End If
 
-    AddAlertTextBox = shp.Height + 10
+    AddAlertTextBox = shp.height + 10
 End Function
 
 '=========================================================
@@ -461,10 +462,10 @@ End Function
 ' se carga el diccionario Cuenta->RUC/NIT desde Clientes_SAB via modPQ_SAB_MC.
 '=========================================================
 Public Sub BuildGraficosAlertasEnHoja( _
-    ByVal loAL   As ListObject, _
+    ByVal loAL As ListObject, _
     ByVal loMAIN As ListObject, _
-    ByVal which  As String, _
-    ByVal suf    As String)
+    ByVal which As String, _
+    ByVal suf As String)
 
     On Error GoTo ErrBuild
 
@@ -477,12 +478,12 @@ Public Sub BuildGraficosAlertasEnHoja( _
     If op <> "DEP" And op <> "RET" Then op = "DEP"
 
     If Not LOHasColumn(loAL, "DESVIACION_MEDIA_%") Then Exit Sub
-    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS")    Then Exit Sub
+    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") Then Exit Sub
 
-    Dim ws As Worksheet: Set ws = loAL.Parent
-    Dim wb As Workbook:  Set wb = ws.Parent
+    Dim ws As Worksheet: Set ws = loAL.parent
+    Dim wb As Workbook:  Set wb = ws.parent
 
-    Dim opLabel   As String: opLabel   = IIf(op = "DEP", "Deposito", "Retiro")
+    Dim opLabel   As String: opLabel = IIf(op = "DEP", "Deposito", "Retiro")
     Dim chartPref As String: chartPref = "GF_SAB_" & op & "_"
 
     ' =========================================================
@@ -492,11 +493,11 @@ Public Sub BuildGraficosAlertasEnHoja( _
     iKey = GetColIdx(loAL, "RUC/NIT")
     If iKey = 0 Then iKey = GetColIdx(loAL, "Cuenta")
     If iKey = 0 Then iKey = 1  ' fallback a primera columna
-    iDv  = GetColIdx(loAL, "DESVIACION_MEDIA_%")
-    iPm  = GetColIdx(loAL, "PROMEDIO_MONTOS")
-    iCl  = GetColIdx(loAL, "CLASE")
-    iMo  = GetColIdx(loAL, "MONEDA")
-    iTP  = GetColIdx(loAL, "TIPO_PERSONA")
+    iDv = GetColIdx(loAL, "DESVIACION_MEDIA_%")
+    iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
+    iCl = GetColIdx(loAL, "CLASE")
+    iMo = GetColIdx(loAL, "MONEDA")
+    iTP = GetColIdx(loAL, "TIPO_PERSONA")
 
     ' =========================================================
     ' 2. Separar en NAT (N) y JUR (J) desde loAL
@@ -601,11 +602,11 @@ NextAL:
     ' 6. Posicion: dos columnas NAT izquierda / JUR derecha
     ' =========================================================
     Dim lastALCol As Long
-    lastALCol = loAL.Range.Column + loAL.Range.Columns.Count
+    lastALCol = loAL.Range.Column + loAL.Range.Columns.count
 
-    Dim chartLeft1   As Double: chartLeft1   = ws.Cells(1, lastALCol + 1).Left
-    Dim chartLeft2   As Double: chartLeft2   = chartLeft1 + CHART_W + 14
-    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).Top + CHART_TOP_MGN
+    Dim chartLeft1   As Double: chartLeft1 = ws.Cells(1, lastALCol + 1).Left
+    Dim chartLeft2   As Double: chartLeft2 = chartLeft1 + CHART_W + 14
+    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).top + CHART_TOP_MGN
 
     Dim cliIdx As Long: cliIdx = 0
 
@@ -775,12 +776,12 @@ Private Function BuildCuentaDocDictLocal() As Object
             If StrComp(lo.Name, "Clientes_SAB", vbTextCompare) = 0 Then
                 If lo.DataBodyRange Is Nothing Then GoTo NotFound
                 colCta = 0: colDoc = 0: colTipo = 0
-                For i = 1 To lo.ListColumns.Count
+                For i = 1 To lo.ListColumns.count
                     Dim hdr As String
                     hdr = UCase$(Replace(Replace(NormStr(lo.ListColumns(i).Name), "/", ""), "-", ""))
-                    If hdr = "CUENTA"   Then colCta  = i
-                    If hdr = "RUCNIT"   Then colDoc  = i
-                    If hdr = "TIPO"     Then colTipo = i
+                    If hdr = "CUENTA" Then colCta = i
+                    If hdr = "RUCNIT" Then colDoc = i
+                    If hdr = "TIPO" Then colTipo = i
                 Next i
                 If colCta = 0 Or colDoc = 0 Then GoTo NotFound
                 Dim data As Variant: data = lo.DataBodyRange.Value2
@@ -801,7 +802,7 @@ Private Function BuildCuentaDocDictLocal() As Object
                         End If
                     End If
                     If Len(sC) > 0 And Len(sD) > 0 Then
-                        If Not d.Exists(sC) Then d.Add sC, sD & "|" & sT
+                        If Not d.exists(sC) Then d.Add sC, sD & "|" & sT
                     End If
 NextCli:
                 Next i
@@ -845,19 +846,19 @@ End Function
 ' Si keyColName = "Cuenta" o no hay dict, busca directamente por Cuenta.
 '=========================================================
 Private Function WriteMontoSeriesByDoc( _
-    ByVal wsh        As Worksheet, _
+    ByVal wsh As Worksheet, _
     ByVal blockStart As Long, _
-    ByVal docKey     As String, _
+    ByVal docKey As String, _
     ByVal keyColName As String, _
-    ByVal iCuenta    As Long, _
-    ByVal iFecha     As Long, _
-    ByVal iMonto     As Long, _
-    ByRef arrM       As Variant, _
+    ByVal iCuenta As Long, _
+    ByVal iFecha As Long, _
+    ByVal iMonto As Long, _
+    ByRef arrM As Variant, _
     ByVal dCuentaDoc As Object, _
-    ByRef minDtOut   As Date, _
-    ByRef maxDtOut   As Date, _
+    ByRef minDtOut As Date, _
+    ByRef maxDtOut As Date, _
     Optional ByVal useRucCol As Boolean = False, _
-    Optional ByVal iRucCol   As Long    = 0) As Long
+    Optional ByVal iRucCol As Long = 0) As Long
 
     On Error GoTo errExit
 
@@ -867,7 +868,7 @@ Private Function WriteMontoSeriesByDoc( _
     Dim byDoc As Boolean
     byDoc = (Not useRucCol) And _
             (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0) And _
-            Not (dCuentaDoc Is Nothing) And (dCuentaDoc.Count > 0)
+            Not (dCuentaDoc Is Nothing) And (dCuentaDoc.count > 0)
     Dim normDocKey As String: normDocKey = NormStr(docKey)
 
     Dim dDM As Object: Set dDM = CreateObject("Scripting.Dictionary")
@@ -888,7 +889,7 @@ Private Function WriteMontoSeriesByDoc( _
             If StrComp(sRuc, normDocKey, vbBinaryCompare) <> 0 Then GoTo NextR2
         ElseIf byDoc Then
             Dim sCta As String: sCta = NormStr(CStr(arrM(r, iCuenta)))
-            If Not dCuentaDoc.Exists(sCta) Then GoTo NextR2
+            If Not dCuentaDoc.exists(sCta) Then GoTo NextR2
             Dim rawVal As String: rawVal = CStr(dCuentaDoc(sCta))
             Dim pp As Long: pp = InStr(rawVal, "|")
             Dim ctaDoc As String
@@ -916,7 +917,7 @@ Private Function WriteMontoSeriesByDoc( _
         If mtoVal = 0 Then GoTo NextR2
 
         Dim dtKey As Long: dtKey = CLng(CDbl(dtVal))
-        If dDM.Exists(dtKey) Then
+        If dDM.exists(dtKey) Then
             dDM(dtKey) = CDbl(dDM(dtKey)) + mtoVal
         Else
             dDM.Add dtKey, mtoVal
@@ -924,13 +925,13 @@ Private Function WriteMontoSeriesByDoc( _
 NextR2:
     Next r
 
-    If dDM.Count = 0 Then GoTo errExit
+    If dDM.count = 0 Then GoTo errExit
 
     ' Escribir en hoja helper y calcular min/max
     Dim nPts As Long: nPts = 0
     Dim kk As Variant
     Dim gotMin As Boolean: gotMin = False
-    For Each kk In dDM.Keys
+    For Each kk In dDM.keys
         Dim dtOut As Date: dtOut = CDate(CLng(kk))
         If Not gotMin Then
             minDtOut = dtOut: maxDtOut = dtOut: gotMin = True
@@ -964,9 +965,9 @@ End Function
 ' igual que modFondosGraficos.
 '=========================================================
 Public Sub BuildGraficosCMEnHoja( _
-    ByVal loAL   As ListObject, _
+    ByVal loAL As ListObject, _
     ByVal loMAIN As ListObject, _
-    ByVal which  As String)
+    ByVal which As String)
 
     On Error GoTo fin
 
@@ -982,10 +983,10 @@ Public Sub BuildGraficosCMEnHoja( _
     If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") Then Exit Sub
     If Not LOHasColumn(loAL, "Documento") Then Exit Sub
 
-    Dim ws As Worksheet: Set ws = loAL.Parent
-    Dim wb As Workbook:  Set wb = ws.Parent
+    Dim ws As Worksheet: Set ws = loAL.parent
+    Dim wb As Workbook:  Set wb = ws.parent
 
-    Dim opLabel   As String: opLabel   = IIf(op = "COM", "Compra", "Venta")
+    Dim opLabel   As String: opLabel = IIf(op = "COM", "Compra", "Venta")
     Dim chartPref As String: chartPref = "GF_CM_" & op & "_"
 
     ' =========================================================
@@ -993,9 +994,9 @@ Public Sub BuildGraficosCMEnHoja( _
     ' =========================================================
     Dim iKey As Long, iDv As Long, iPm As Long, iTP As Long
     iKey = GetColIdx(loAL, "Documento")
-    iDv  = GetColIdx(loAL, "DESVIACION_MEDIA_%")
-    iPm  = GetColIdx(loAL, "PROMEDIO_MONTOS")
-    iTP  = GetColIdx(loAL, "TIPO_PERSONA")
+    iDv = GetColIdx(loAL, "DESVIACION_MEDIA_%")
+    iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
+    iTP = GetColIdx(loAL, "TIPO_PERSONA")
 
     Const BUF As Long = 256
     Dim nK(BUF) As String, nDv(BUF) As Double, nPm(BUF) As Double
@@ -1011,21 +1012,21 @@ Public Sub BuildGraficosCMEnHoja( _
     Dim ai As Long
     For ai = 1 To UBound(arrAL, 1)
         Dim sKey As String: sKey = Trim$(CStr(arrAL(ai, iKey)))
-        Dim sDv  As Double: sDv  = SafeDbl(arrAL(ai, iDv))
-        Dim sPm  As Double: sPm  = SafeDbl(arrAL(ai, iPm))
+        Dim sDv  As Double: sDv = SafeDbl(arrAL(ai, iDv))
+        Dim sPm  As Double: sPm = SafeDbl(arrAL(ai, iPm))
         Dim sTP  As String
         sTP = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
 
         If InStr(sTP, "JUR") > 0 Or sTP = "PJ" Then
             If jCnt < BUF Then
-                jK(jCnt)    = sKey: jDv(jCnt)   = sDv: jPm(jCnt)  = sPm
-                jTP_a(jCnt) = sTP:  jPH(jCnt)   = ""
+                jK(jCnt) = sKey: jDv(jCnt) = sDv: jPm(jCnt) = sPm
+                jTP_a(jCnt) = sTP:  jPH(jCnt) = ""
                 jCnt = jCnt + 1
             End If
         Else
             If nCnt < BUF Then
-                nK(nCnt)    = sKey: nDv(nCnt)   = sDv: nPm(nCnt)  = sPm
-                nTP_a(nCnt) = sTP:  nPH(nCnt)   = ""
+                nK(nCnt) = sKey: nDv(nCnt) = sDv: nPm(nCnt) = sPm
+                nTP_a(nCnt) = sTP:  nPH(nCnt) = ""
                 nCnt = nCnt + 1
             End If
         End If
@@ -1043,7 +1044,7 @@ Public Sub BuildGraficosCMEnHoja( _
     Dim iM_tp  As Long, iM_mto As Long
     iM_doc = GetColIdx(loMAIN, "Documento")
     iM_fch = GetColIdx(loMAIN, "Fecha")
-    iM_tp  = GetColIdx(loMAIN, "Tipo Persona")
+    iM_tp = GetColIdx(loMAIN, "Tipo Persona")
 
     ' Monto: prioridad Total Neto > Monto Des > Monto Ori > Gan/Per PEN > Gan/Per
     Dim mntCandidatos(4) As String
@@ -1079,11 +1080,11 @@ Public Sub BuildGraficosCMEnHoja( _
     ' 4. Posicion a la derecha de loAL, dos columnas NAT/JUR
     ' =========================================================
     Dim lastALCol As Long
-    lastALCol = loAL.Range.Column + loAL.Range.Columns.Count
+    lastALCol = loAL.Range.Column + loAL.Range.Columns.count
 
-    Dim chartLeft1   As Double: chartLeft1   = ws.Cells(1, lastALCol + 1).Left
-    Dim chartLeft2   As Double: chartLeft2   = chartLeft1 + CHART_W + 14
-    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).Top + CHART_TOP_MGN
+    Dim chartLeft1   As Double: chartLeft1 = ws.Cells(1, lastALCol + 1).Left
+    Dim chartLeft2   As Double: chartLeft2 = chartLeft1 + CHART_W + 14
+    Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).top + CHART_TOP_MGN
 
     Dim cliIdx As Long: cliIdx = 0
 
@@ -1211,13 +1212,13 @@ Private Function WriteMontoSeriesCM( _
         On Error GoTo errExit
 
         Dim mVal As Double: mVal = SafeDbl(arrM(r, iMonto))
-        Dim dk As String:   dk   = CStr(CLng(CDbl(dtVal)))
-        If dDM.Exists(dk) Then dDM(dk) = dDM(dk) + mVal Else dDM.Add dk, mVal
+        Dim dk As String:   dk = CStr(CLng(CDbl(dtVal)))
+        If dDM.exists(dk) Then dDM(dk) = dDM(dk) + mVal Else dDM.Add dk, mVal
 NextR_CM:
     Next r
 
     ' Si no hubo puntos, segundo pase sin filtro de moneda
-    If dDM.Count = 0 And iMon > 0 Then
+    If dDM.count = 0 And iMon > 0 Then
         For r = 1 To nRows
             If NormDoc(CStr(arrM(r, iDoc))) <> docKey Then GoTo NextR_CM2
             If iTP > 0 Then
@@ -1231,18 +1232,18 @@ NextR_CM:
             On Error GoTo errExit
             Dim mv2 As Double: mv2 = SafeDbl(arrM(r, iMonto))
             Dim dk2 As String: dk2 = CStr(CLng(CDbl(dtV2)))
-            If dDM.Exists(dk2) Then dDM(dk2) = dDM(dk2) + mv2 Else dDM.Add dk2, mv2
+            If dDM.exists(dk2) Then dDM(dk2) = dDM(dk2) + mv2 Else dDM.Add dk2, mv2
 NextR_CM2:
         Next r
     End If
 
-    If dDM.Count = 0 Then WriteMontoSeriesCM = 0: Exit Function
+    If dDM.count = 0 Then WriteMontoSeriesCM = 0: Exit Function
 
     Dim sers() As Long
-    ReDim sers(dDM.Count - 1)
+    ReDim sers(dDM.count - 1)
     Dim kk As Long: kk = 0
     Dim vk As Variant
-    For Each vk In dDM.Keys: sers(kk) = CLng(vk): kk = kk + 1: Next vk
+    For Each vk In dDM.keys: sers(kk) = CLng(vk): kk = kk + 1: Next vk
 
     Dim ii As Long, jj As Long, tmp As Long
     For ii = 1 To UBound(sers)
@@ -1283,3 +1284,5 @@ Private Function NormPersona(ByVal s As String) As String
     If InStr(t, "JUR") > 0 Or t = "PJ" Then NormPersona = "JURIDICA": Exit Function
     NormPersona = t
 End Function
+
+
