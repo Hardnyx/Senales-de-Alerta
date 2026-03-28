@@ -619,7 +619,7 @@ SkipRow:
     Dim hdrs As Variant
     hdrs = Array("Fecha", "Transac", "Cuenta", "Nombre", "Ope", "Tipo", "FPag", _
                  "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda", _
-                 "RUC/NIT", "TIPO_PERSONA", "CUENTAS_RUC")
+                 "RUC/NIT", "TIPO_PERSONA")
     Dim j As Long
     For j = 0 To UBound(hdrs): shMain.Cells(1, j + 1).Value = hdrs(j): Next j
 
@@ -785,9 +785,10 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim nRows As Long: nRows = loMain.DataBodyRange.Rows.Count
     Dim data  As Variant: data = loMain.DataBodyRange.Value2
 
-    Dim dDay  As Object: Set dDay  = CreateObject("Scripting.Dictionary")
-    Dim dMeta As Object: Set dMeta = CreateObject("Scripting.Dictionary")
-    Dim dTipo As Object: Set dTipo = CreateObject("Scripting.Dictionary")
+    Dim dDay    As Object: Set dDay    = CreateObject("Scripting.Dictionary")
+    Dim dMeta   As Object: Set dMeta   = CreateObject("Scripting.Dictionary")
+    Dim dTipo   As Object: Set dTipo   = CreateObject("Scripting.Dictionary")
+    Dim dCuentas As Object: Set dCuentas = CreateObject("Scripting.Dictionary")
 
     Dim vM As Variant, dM As Double
     Dim vC As Variant, sCuenta As String, sKey As String
@@ -830,6 +831,10 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
         Else
             dDay.Add dayKey, dM
         End If
+
+        ' Acumular cuentas asociadas a este sKey
+        Dim sCuentaKey As String: sCuentaKey = sKey & "|" & sCuenta
+        If Not dCuentas.Exists(sCuentaKey) Then dCuentas.Add sCuentaKey, sCuenta
 
         If Not dMeta.Exists(sKey) Then
             Dim sCl As String: sCl = ""
@@ -877,7 +882,7 @@ SkipAl:
     Dim nDocs As Long: nDocs = dSum.Count
     If nDocs = 0 Then Exit Function
 
-    ReDim outArr(1 To nDocs, 1 To 10) As Variant
+    ReDim outArr(1 To nDocs, 1 To 11) As Variant
     Dim r As Long: r = 0
     Dim sDoc2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
@@ -921,6 +926,21 @@ SkipAl:
         outArr(r, 8) = desv
         outArr(r, 9)  = nivel
         outArr(r, 10) = IIf(dTipo.Exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
+        ' Construir lista de cuentas asociadas separadas por coma
+        Dim sCuentasList As String: sCuentasList = ""
+        Dim ckk As Variant
+        For Each ckk In dCuentas.keys
+            Dim ckParts() As String: ckParts = Split(CStr(ckk), "|")
+            If ckParts(0) = CStr(sDoc2) Then
+                If Len(sCuentasList) = 0 Then
+                    sCuentasList = ckParts(1)
+                Else
+                    sCuentasList = sCuentasList & ", " & ckParts(1)
+                End If
+            End If
+        Next ckk
+        outArr(r, 11) = sCuentasList
+
     Next sDoc2
 
     ClearSheetButKeepName shAl
@@ -929,10 +949,11 @@ SkipAl:
     Dim keyHdr As String: keyHdr = IIf(usandoDoc, "RUC/NIT", "Cuenta")
     Dim hdrs As Variant
     hdrs = Array(keyHdr, "CLASE", "MONEDA", "SUMA_MONTOS", "NUM_OPERACIONES", _
-                 "PROMEDIO_MONTOS", "ULTIMA_OPERACION", "DESVIACION_MEDIA_%", "NIVEL_RIESGO", "TIPO_PERSONA")
+                 "PROMEDIO_MONTOS", "ULTIMA_OPERACION", "DESVIACION_MEDIA_%", "NIVEL_RIESGO", "TIPO_PERSONA", _
+                 "CUENTAS")
     Dim j As Long
-    For j = 0 To 9: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
-    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 10)).Value = outArr
+    For j = 0 To 10: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 11)).Value = outArr
 
     Dim loAl As ListObject
     Set loAl = shAl.ListObjects.Add(xlSrcRange, _
