@@ -579,6 +579,7 @@ NextAL:
     ' Si MAIN tiene columna RUC/NIT usarla directamente (sin dict local).
     ' Fallback: dict local si MAIN es de una version anterior sin esa columna.
     Dim dCuentaDoc As Object
+    Set dCuentaDoc = CreateObject("Scripting.Dictionary")  ' nunca Nothing, evita Error 5 en VBA And
     Dim useRucCol As Boolean
     useRucCol = (iM_ruc > 0) And (StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0)
     If Not useRucCol And StrComp(keyColName, "RUC/NIT", vbTextCompare) = 0 Then
