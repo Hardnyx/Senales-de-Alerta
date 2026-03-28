@@ -127,14 +127,14 @@ Private Sub DeleteChartsByPrefix(ByVal ws As Worksheet, ByVal pref As String)
     On Error GoTo 0
 End Sub
 
-Private Function EnsureHelperSheet(ByVal wb As Workbook) As Worksheet
+Private Function EnsureHelperSheet(ByVal wb As Workbook, ByVal shName As String) As Worksheet
     Dim wsh As Worksheet
     On Error Resume Next
-    Set wsh = wb.Worksheets(HELPER_SH)
+    Set wsh = wb.Worksheets(shName)
     On Error GoTo 0
     If wsh Is Nothing Then
         Set wsh = wb.Worksheets.Add(After:=wb.Worksheets(wb.Worksheets.Count))
-        wsh.Name = HELPER_SH
+        wsh.Name = shName
     Else
         wsh.Cells.Clear
     End If
@@ -593,7 +593,7 @@ NextAL:
     ' 5. Hoja helper y limpieza de graficos anteriores
     ' =========================================================
     Dim wsh As Worksheet
-    Set wsh = EnsureHelperSheet(wb)
+    Set wsh = EnsureHelperSheet(wb, "_GF_MC_" & op & "_HELPER")
 
     DeleteChartsByPrefix ws, chartPref
 
@@ -1071,7 +1071,7 @@ Public Sub BuildGraficosCMEnHoja( _
     ' 3. Hoja helper y limpieza de graficos anteriores
     ' =========================================================
     Dim wsh As Worksheet
-    Set wsh = EnsureHelperSheet(wb)
+    Set wsh = EnsureHelperSheet(wb, "_GF_CM_" & op & "_HELPER")
 
     DeleteChartsByPrefix ws, chartPref
 
