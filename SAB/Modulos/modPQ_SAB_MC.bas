@@ -448,7 +448,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     ' --- Target: 15 columnas canonicas de MAIN ---
     ' Fecha, Transac, Cuenta, Nombre, Ope, Tipo, FPag, Clase,
     ' ALaOrden, Deposito, Retiro, CtaLiq, Estado, Observaciones, Moneda
-    Dim TARGET_COLS As Long: TARGET_COLS = 17
+    Dim TARGET_COLS As Long: TARGET_COLS = 18
 
     ' Indices en outArr (1-based en columna)
     Const O_FECHA  As Long = 1:  Const O_TRANSAC As Long = 2:  Const O_CUENTA As Long = 3
@@ -456,7 +456,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Const O_FPAG   As Long = 7:  Const O_CLASE   As Long = 8:  Const O_ALAOR  As Long = 9
     Const O_DEP    As Long = 10: Const O_RET     As Long = 11: Const O_CTALIQ As Long = 12
     Const O_EST    As Long = 13: Const O_OBS     As Long = 14: Const O_MON    As Long = 15
-    Const O_RUCNIT As Long = 16: Const O_TIPOP   As Long = 17
+    Const O_RUCNIT As Long = 16: Const O_TIPOP   As Long = 17: Const O_CTAS As Long = 18
 
     ' Pre-alocar output (worst case = nRows)
     ReDim outArr(1 To nRows, 1 To TARGET_COLS) As Variant
@@ -469,6 +469,23 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
 
     ' Diccionario Cuenta -> "RUC/NIT|Tipo" para enriquecer MAIN
     Dim dMain As Object: Set dMain = BuildCuentaDocDict()
+
+    ' Diccionario inverso RUC/NIT -> cuentas asociadas (comma-separated)
+    Dim dRucCtas As Object: Set dRucCtas = CreateObject("Scripting.Dictionary")
+    Dim vkR As Variant, sRucK As String, sCtaK As String
+    For Each vkR In dMain.Keys
+        sCtaK = CleanStr(CStr(vkR))
+        Dim sRawK As String: sRawK = CStr(dMain(vkR))
+        Dim pipK As Long: pipK = InStr(sRawK, "|")
+        sRucK = CleanStr(IIf(pipK > 0, Left$(sRawK, pipK - 1), sRawK))
+        If Len(sRucK) > 0 Then
+            If dRucCtas.exists(sRucK) Then
+                dRucCtas(sRucK) = dRucCtas(sRucK) & ", " & sCtaK
+            Else
+                dRucCtas.Add sRucK, sCtaK
+            End If
+        End If
+    Next vkR
 
     ' Primera pasada: encontrar la fecha maxima en los datos (igual que M_MC_MAIN)
     Dim maxDateRaw As Date: maxDateRaw = 0
@@ -575,8 +592,12 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
                 Dim sRawM As String: sRawM = CStr(dMain(sCtaM))
                 Dim pipM  As Long:   pipM  = InStr(sRawM, "|")
                 If pipM > 0 Then
-                    outArr(r, O_RUCNIT) = CleanStr(Left$(sRawM, pipM - 1))
+                    Dim sRucEnr As String: sRucEnr = CleanStr(Left$(sRawM, pipM - 1))
+                    outArr(r, O_RUCNIT) = sRucEnr
                     outArr(r, O_TIPOP)  = UCase$(CleanStr(Mid$(sRawM, pipM + 1)))
+                    If dRucCtas.exists(sRucEnr) Then
+                        outArr(r, O_CTAS) = CStr(dRucCtas(sRucEnr))
+                    End If
                 Else
                     outArr(r, O_RUCNIT) = CleanStr(sRawM)
                 End If
@@ -598,7 +619,7 @@ SkipRow:
     Dim hdrs As Variant
     hdrs = Array("Fecha", "Transac", "Cuenta", "Nombre", "Ope", "Tipo", "FPag", _
                  "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda", _
-                 "RUC/NIT", "TIPO_PERSONA")
+                 "RUC/NIT", "TIPO_PERSONA", "CUENTAS_RUC")
     Dim j As Long
     For j = 0 To UBound(hdrs): shMain.Cells(1, j + 1).Value = hdrs(j): Next j
 
