@@ -292,7 +292,7 @@ Private Sub CalcAxisBounds( _
     If nMonths < 1 Then nMonths = 1
 
     majorUnit = Int((axMaxBase - axMin - 1) / CDbl(nMonths)) + 1
-    axMax = axMaxBase + CLng(majorUnit) - 1
+    axMax = axMaxBase
 End Sub
 
 '=========================================================
