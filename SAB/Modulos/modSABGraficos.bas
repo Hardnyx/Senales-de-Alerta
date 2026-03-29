@@ -292,7 +292,7 @@ Private Sub CalcAxisBounds( _
     If nMonths < 1 Then nMonths = 1
 
     majorUnit = Int((axMaxBase - axMin - 1) / CDbl(nMonths)) + 1
-    axMax = axMaxBase + CLng(majorUnit) - 1
+    axMax = axMaxBase + CLng(majorUnit) + 14
 End Sub
 
 '=========================================================
@@ -393,7 +393,7 @@ Private Sub CreateScatterChart( _
 
         On Error Resume Next
         .PlotArea.Left = 58
-        .PlotArea.Width = CHART_W - 58 - 145
+        .PlotArea.Width = CHART_W - 58 - 120
         On Error GoTo 0
 
         On Error Resume Next
