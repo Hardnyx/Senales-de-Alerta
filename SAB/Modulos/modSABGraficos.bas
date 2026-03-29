@@ -286,12 +286,13 @@ Private Sub CalcAxisBounds( _
     If maxM > 12 Then maxM = 1: maxY = maxY + 1
 
     axMin = CDbl(DateSerial(minY, minM, 1))
-    axMax = CDbl(DateSerial(maxY, maxM, 1) + majorUnit - 1)
+    Dim axMaxBase As Double: axMaxBase = CDbl(DateSerial(maxY, maxM, 1))
 
     nMonths = (maxY - minY) * 12 + (maxM - minM)
     If nMonths < 1 Then nMonths = 1
 
-    majorUnit = Int((axMax - axMin - 1) / CDbl(nMonths)) + 1  ' techo: evita ticks dobles en mismo mes
+    majorUnit = Int((axMaxBase - axMin - 1) / CDbl(nMonths)) + 1
+    axMax = axMaxBase + CLng(majorUnit) - 1
 End Sub
 
 '=========================================================
