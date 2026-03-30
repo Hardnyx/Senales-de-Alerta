@@ -476,7 +476,7 @@ End Function
 '=========================================================
 Public Sub BuildGraficosAlertasEnHoja( _
     ByVal loAL As ListObject, _
-    ByVal loMAIN As ListObject, _
+    ByVal loMain As ListObject, _
     ByVal which As String, _
     ByVal suf As String)
 
@@ -484,8 +484,8 @@ Public Sub BuildGraficosAlertasEnHoja( _
 
     If loAL Is Nothing Then Exit Sub
     If loAL.DataBodyRange Is Nothing Then Exit Sub
-    If loMAIN Is Nothing Then Exit Sub
-    If loMAIN.DataBodyRange Is Nothing Then Exit Sub
+    If loMain Is Nothing Then Exit Sub
+    If loMain.DataBodyRange Is Nothing Then Exit Sub
 
     Dim op As String: op = UCase$(Trim$(which))
     If op <> "DEP" And op <> "RET" Then op = "DEP"
@@ -515,11 +515,11 @@ Public Sub BuildGraficosAlertasEnHoja( _
     ' =========================================================
     ' 2. Separar en NAT (N) y JUR (J) desde loAL
     ' =========================================================
-    Const BUF As Long = 256
-    Dim nK(BUF) As String, nDv(BUF) As Double, nPm(BUF) As Double
-    Dim nCl(BUF) As String, nMo(BUF) As String
-    Dim jK(BUF) As String, jDv(BUF) As Double, jPm(BUF) As Double
-    Dim jCl(BUF) As String, jMo(BUF) As String
+    Const buf As Long = 256
+    Dim nK(buf) As String, nDv(buf) As Double, nPm(buf) As Double
+    Dim nCl(buf) As String, nMo(buf) As String
+    Dim jK(buf) As String, jDv(buf) As Double, jPm(buf) As Double
+    Dim jCl(buf) As String, jMo(buf) As String
     Dim nCnt As Long: nCnt = 0
     Dim jCnt As Long: jCnt = 0
 
@@ -541,13 +541,13 @@ Public Sub BuildGraficosAlertasEnHoja( _
         isJur = (sTPAL = "J" Or Left$(sTPAL, 1) = "J" Or sTPAL = "PJ")
 
         If isJur Then
-            If jCnt < BUF Then
+            If jCnt < buf Then
                 jK(jCnt) = sKeyAL: jDv(jCnt) = sDvAL: jPm(jCnt) = sPmAL
                 jCl(jCnt) = sClAL: jMo(jCnt) = sMoAL
                 jCnt = jCnt + 1
             End If
         Else
-            If nCnt < BUF Then
+            If nCnt < buf Then
                 nK(nCnt) = sKeyAL: nDv(nCnt) = sDvAL: nPm(nCnt) = sPmAL
                 nCl(nCnt) = sClAL: nMo(nCnt) = sMoAL
                 nCnt = nCnt + 1
@@ -583,10 +583,10 @@ NextAL:
     ' 4. Columnas en loMAIN
     ' =========================================================
     Dim iM_cta As Long, iM_fch As Long, iM_mto As Long, iM_ruc As Long
-    iM_cta = GetColIdx(loMAIN, "Cuenta")
-    iM_fch = GetColIdx(loMAIN, "Fecha")
-    iM_mto = GetColIdx(loMAIN, IIf(op = "DEP", "Dep" & Chr(243) & "sito", "Retiro"))
-    iM_ruc = GetColIdx(loMAIN, "RUC/NIT")
+    iM_cta = GetColIdx(loMain, "Cuenta")
+    iM_fch = GetColIdx(loMain, "Fecha")
+    iM_mto = GetColIdx(loMain, IIf(op = "DEP", "Dep" & Chr(243) & "sito", "Retiro"))
+    iM_ruc = GetColIdx(loMain, "RUC/NIT")
 
     If iM_cta = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
 
@@ -601,7 +601,7 @@ NextAL:
     End If
 
     Dim arrM As Variant
-    arrM = loMAIN.DataBodyRange.Value
+    arrM = loMain.DataBodyRange.Value
 
     ' =========================================================
     ' 5. Hoja helper y limpieza de graficos anteriores
@@ -979,15 +979,15 @@ End Function
 '=========================================================
 Public Sub BuildGraficosCMEnHoja( _
     ByVal loAL As ListObject, _
-    ByVal loMAIN As ListObject, _
+    ByVal loMain As ListObject, _
     ByVal which As String)
 
     On Error GoTo fin
 
     If loAL Is Nothing Then Exit Sub
     If loAL.DataBodyRange Is Nothing Then Exit Sub
-    If loMAIN Is Nothing Then Exit Sub
-    If loMAIN.DataBodyRange Is Nothing Then Exit Sub
+    If loMain Is Nothing Then Exit Sub
+    If loMain.DataBodyRange Is Nothing Then Exit Sub
 
     Dim op As String: op = UCase$(Trim$(which))
     If op <> "COM" And op <> "VEN" Then op = "COM"
@@ -1011,11 +1011,11 @@ Public Sub BuildGraficosCMEnHoja( _
     iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
     iTP = GetColIdx(loAL, "TIPO_PERSONA")
 
-    Const BUF As Long = 256
-    Dim nK(BUF) As String, nDv(BUF) As Double, nPm(BUF) As Double
-    Dim nTP_a(BUF) As String, nPH(BUF) As String
-    Dim jK(BUF) As String, jDv(BUF) As Double, jPm(BUF) As Double
-    Dim jTP_a(BUF) As String, jPH(BUF) As String
+    Const buf As Long = 256
+    Dim nK(buf) As String, nDv(buf) As Double, nPm(buf) As Double
+    Dim nTP_a(buf) As String, nPH(buf) As String
+    Dim jK(buf) As String, jDv(buf) As Double, jPm(buf) As Double
+    Dim jTP_a(buf) As String, jPH(buf) As String
     Dim nCnt As Long: nCnt = 0
     Dim jCnt As Long: jCnt = 0
 
@@ -1031,13 +1031,13 @@ Public Sub BuildGraficosCMEnHoja( _
         sTP = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
 
         If InStr(sTP, "JUR") > 0 Or sTP = "PJ" Then
-            If jCnt < BUF Then
+            If jCnt < buf Then
                 jK(jCnt) = sKey: jDv(jCnt) = sDv: jPm(jCnt) = sPm
                 jTP_a(jCnt) = sTP:  jPH(jCnt) = ""
                 jCnt = jCnt + 1
             End If
         Else
-            If nCnt < BUF Then
+            If nCnt < buf Then
                 nK(nCnt) = sKey: nDv(nCnt) = sDv: nPm(nCnt) = sPm
                 nTP_a(nCnt) = sTP:  nPH(nCnt) = ""
                 nCnt = nCnt + 1
@@ -1055,9 +1055,9 @@ Public Sub BuildGraficosCMEnHoja( _
     ' =========================================================
     Dim iM_doc As Long, iM_fch As Long
     Dim iM_tp  As Long, iM_mto As Long
-    iM_doc = GetColIdx(loMAIN, "Documento")
-    iM_fch = GetColIdx(loMAIN, "Fecha")
-    iM_tp = GetColIdx(loMAIN, "Tipo Persona")
+    iM_doc = GetColIdx(loMain, "Documento")
+    iM_fch = GetColIdx(loMain, "Fecha")
+    iM_tp = GetColIdx(loMain, "Tipo Persona")
 
     ' Monto: prioridad Total Neto > Monto Des > Monto Ori > Gan/Per PEN > Gan/Per
     Dim mntCandidatos(4) As String
@@ -1068,18 +1068,18 @@ Public Sub BuildGraficosCMEnHoja( _
     mntCandidatos(4) = "Gan/Per"
     Dim mc As Long
     For mc = 0 To 4
-        iM_mto = GetColIdx(loMAIN, mntCandidatos(mc))
+        iM_mto = GetColIdx(loMain, mntCandidatos(mc))
         If iM_mto > 0 Then Exit For
     Next mc
 
     ' Moneda (para filtrar COM=USD, VEN=PEN)
     Dim iM_mon As Long
-    iM_mon = GetColIdx(loMAIN, "Moneda Ori")
+    iM_mon = GetColIdx(loMain, "Moneda Ori")
 
     If iM_doc = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
 
     Dim arrM As Variant
-    arrM = loMAIN.DataBodyRange.Value
+    arrM = loMain.DataBodyRange.Value
 
     ' =========================================================
     ' 3. Hoja helper y limpieza de graficos anteriores
@@ -1111,7 +1111,7 @@ Public Sub BuildGraficosCMEnHoja( _
         Dim bStartN As Long: bStartN = 1 + cliIdx * CLI_BLOCK
 
         Dim minDtN As Date, maxDtN As Date, rowsN As Long
-        rowsN = WriteMontoSeriesCM(wsh, bStartN, nK(ci), "NATURAL", op, _
+        rowsN = WriteMontoSeriesCM(wsh, bStartN, NormDoc(nK(ci)), "NATURAL", op, _
                                    iM_doc, iM_fch, iM_mto, iM_tp, iM_mon, arrM, _
                                    minDtN, maxDtN)
         If rowsN = 0 Then GoTo NextNAT_CM
@@ -1143,7 +1143,7 @@ NextNAT_CM:
         Dim bStartJ As Long: bStartJ = 1 + cliIdx * CLI_BLOCK
 
         Dim minDtJ As Date, maxDtJ As Date, rowsJ As Long
-        rowsJ = WriteMontoSeriesCM(wsh, bStartJ, jK(cj), "JURIDICA", op, _
+        rowsJ = WriteMontoSeriesCM(wsh, bStartJ, NormDoc(jK(cj)), "JURIDICA", op, _
                                    iM_doc, iM_fch, iM_mto, iM_tp, iM_mon, arrM, _
                                    minDtJ, maxDtJ)
         If rowsJ = 0 Then GoTo NextJUR_CM
