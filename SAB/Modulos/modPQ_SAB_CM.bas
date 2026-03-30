@@ -494,7 +494,26 @@ SkipMainCM:
         shMain.Cells(1, j).Value = loRaw.ListColumns(j).Name
     Next j
 
+    ' Después:
+    shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, nCols)).NumberFormat = "@"
     shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, nCols)).Value = outArr
+    
+    ' Re-escribir columnas numericas como numeros reales
+    Dim numColsCM(3) As Long
+    numColsCM(0) = cFecha: numColsCM(1) = cTotNeto
+    numColsCM(2) = cMtoOri: numColsCM(3) = cMtoDes
+    Dim ncm As Long, ncmR As Long
+    Dim ncmArr() As Variant
+    For ncm = 0 To 3
+        If numColsCM(ncm) > 0 Then
+            ReDim ncmArr(1 To r, 1 To 1)
+            For ncmR = 1 To r: ncmArr(ncmR, 1) = outArr(ncmR, numColsCM(ncm)): Next ncmR
+            With shMain.Range(shMain.Cells(2, numColsCM(ncm)), shMain.Cells(r + 1, numColsCM(ncm)))
+                .NumberFormat = "General"
+                .Value = ncmArr
+            End With
+        End If
+    Next ncm
     shMain.Columns(cFecha).NumberFormat = "dd/mm/yyyy"
 
     Dim loMain As ListObject
@@ -669,7 +688,20 @@ SkipAlCM:
                  "NIVEL_RIESGO", "MONEDA")
     Dim j As Long
     For j = 0 To 8: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
+    ' Después:
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 9)).NumberFormat = "@"
     shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 9)).Value = outArr
+    
+    ' Re-escribir columnas numericas (3=SUMA a 8=NIVEL_RIESGO)
+    Dim nalR As Long, nalArr() As Variant, nalC As Long
+    For nalC = 3 To 8
+        ReDim nalArr(1 To nDocs, 1 To 1)
+        For nalR = 1 To nDocs: nalArr(nalR, 1) = outArr(nalR, nalC): Next nalR
+        With shAl.Range(shAl.Cells(2, nalC), shAl.Cells(nDocs + 1, nalC))
+            .NumberFormat = "General"
+            .Value = nalArr
+        End With
+    Next nalC
 
     Dim loAL As ListObject
     Set loAL = shAl.ListObjects.Add(xlSrcRange, _
@@ -723,7 +755,7 @@ Public Sub CrearQuerySAB_CM(ByVal rutaArchivo As String, _
 
     ' Cargar RAW desde TSV
     tStage = Timer
-    Application.StatusBar = "Cargando RAW CM..."
+    SAB_Progress 0.1, "Cargando RAW CM..."
     Dim loRaw As ListObject: Set loRaw = LoadCM_TSV(rutaArchivo, shRaw, "SAB_CM_RAW")
     If loRaw Is Nothing Then
         Err.Raise 9001, , "No se pudo leer el archivo TSV: " & rutaArchivo
@@ -732,7 +764,7 @@ Public Sub CrearQuerySAB_CM(ByVal rutaArchivo As String, _
 
     ' Construir MAIN
     tStage = Timer
-    Application.StatusBar = "Construyendo MAIN CM..."
+    SAB_Progress 0.35, "Construyendo MAIN CM..."
     Dim loMain As ListObject: Set loMain = BuildMainCM_VBA(loRaw, mesesSel, shMain, "SAB_CM_MAIN")
     If loMain Is Nothing Then
         Err.Raise 9002, , "MAIN CM vacio: sin datos en el rango de fechas seleccionado."
@@ -745,7 +777,7 @@ Public Sub CrearQuerySAB_CM(ByVal rutaArchivo As String, _
 
     If makeCOM Then
         tStage = Timer
-        Application.StatusBar = "Calculando alertas COM (USD)..."
+        SAB_Progress 0.6, "Calculando alertas COM (USD)..."
         Set shAlCom = EnsureSheet("SAB_CM_AL_COM_WORK")
         ClearSheetButKeepName shAlCom
         Set loAlCom = BuildAlertasCM_VBA(loMain, "COM", shAlCom, "SAB_CM_ALERTAS_COM")
@@ -754,7 +786,7 @@ Public Sub CrearQuerySAB_CM(ByVal rutaArchivo As String, _
 
     If makeVEN Then
         tStage = Timer
-        Application.StatusBar = "Calculando alertas VEN (PEN)..."
+        SAB_Progress 0.75, "Calculando alertas VEN (PEN)..."
         Set shAlVen = EnsureSheet("SAB_CM_AL_VEN_WORK")
         ClearSheetButKeepName shAlVen
         Set loAlVen = BuildAlertasCM_VBA(loMain, "VEN", shAlVen, "SAB_CM_ALERTAS_VEN")
@@ -824,12 +856,18 @@ Public Sub CrearQuerySAB_CM(ByVal rutaArchivo As String, _
                mStageLog & vbCrLf & vbCrLf & _
                "Total: " & FormatElapsed(ElapsedSec(mT0Total))
 
-    Application.StatusBar = "SAB CM listo. Total " & FormatElapsed(ElapsedSec(mT0Total))
+    SAB_Progress 1#, "SAB CM listo. Total " & FormatElapsed(ElapsedSec(mT0Total))
     Debug.Print totalMsg
     If showProgress Then MsgBox totalMsg, vbInformation, "SAB CM"
 
-    shMain.Activate
-    shMain.Range("A1").Select
+    If makeCOM And Not loAlCom Is Nothing Then
+        shAlCom.Activate
+    ElseIf makeVEN And Not loAlVen Is Nothing Then
+        shAlVen.Activate
+    Else
+        shMain.Activate
+    End If
+    ActiveSheet.Range("A1").Select
     Exit Sub
 
 EH:

@@ -31,29 +31,28 @@ Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
     Set fr = GetFrameOrNothing("fraProg")
     If fr Is Nothing Then Exit Sub
 
-    Dim lbBg     As MSForms.Label
-    Dim lbFill   As MSForms.Label
-    Dim lbPct    As MSForms.Label
-    Dim lbStatus As MSForms.Label
+    Dim lbBg     As MSForms.label
+    Dim lbFill   As MSForms.label
+    Dim lbPct    As MSForms.label
+    Dim lbStatus As MSForms.label
 
-    Set lbBg     = GetLabelInFrame(fr, "lblBarBg")
-    Set lbFill   = GetLabelInFrame(fr, "lblBar")
-    Set lbPct    = GetLabelInFrame(fr, "lblPct")
+    Set lbBg = GetLabelInFrame(fr, "lblBarBg")
+    Set lbFill = GetLabelInFrame(fr, "lblBar")
+    Set lbPct = GetLabelInFrame(fr, "lblPct")
     Set lbStatus = GetLabelInFrame(fr, "lblStatus")
 
     If Not lbBg Is Nothing And Not lbFill Is Nothing Then
         Dim wMax As Single
-        wMax = lbBg.Width - 2
+        wMax = lbBg.width - 2
         If wMax < 0 Then wMax = 0
-        lbFill.Width = wMax * pct
-        If pct > 0 And lbFill.Width < 1 Then lbFill.Width = 1
+        lbFill.width = wMax * pct
+        If pct > 0 And lbFill.width < 1 Then lbFill.width = 1
     End If
 
-    If Not lbPct    Is Nothing Then lbPct.Caption    = Format$(pct, "0%")
-    If Not lbStatus Is Nothing Then lbStatus.Caption = msg
+    If Not lbPct Is Nothing Then lbPct.caption = Format$(pct, "0%")
+    If Not lbStatus Is Nothing Then lbStatus.caption = msg
 
     Me.Repaint
-    DoEvents
     On Error GoTo 0
 End Sub
 
@@ -69,7 +68,7 @@ End Sub
 ' Ciclo de vida del form
 ' ==========================
 Private Sub UserForm_Initialize()
-    Set gHandlers   = New Collection
+    Set gHandlers = New Collection
 
     gSuppressEvents = True
     BuildOrRefreshUI
@@ -97,15 +96,15 @@ End Sub
 Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String = "")
     isRunning = running
 
-    If HasControl("cmdCargar")   Then Me.Controls("cmdCargar").Enabled   = Not running
+    If HasControl("cmdCargar") Then Me.Controls("cmdCargar").Enabled = Not running
     If HasControl("cmdExaminar") Then Me.Controls("cmdExaminar").Enabled = Not running
     If HasControl("cbTipoCarga") Then Me.Controls("cbTipoCarga").Enabled = Not running
     If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = Not running
-    If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = Not running
-    If HasControl("txtArchivo")  Then Me.Controls("txtArchivo").Enabled  = Not running
+    If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = Not running
+    If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Enabled = Not running
 
     If HasControl("cmdCancelar") Then
-        Me.Controls("cmdCancelar").Caption = IIf(running, "Cerrar", "Cancelar")
+        Me.Controls("cmdCancelar").caption = IIf(running, "Cerrar", "Cancelar")
     End If
 
     If running Then
@@ -123,120 +122,120 @@ End Sub
 ' UI: crear o reutilizar controles
 ' ==========================
 Private Sub BuildOrRefreshUI()
-    Me.Caption         = "SAB - Cargar Datos"
+    Me.caption = "SAB - Cargar Datos"
     Me.StartUpPosition = 1
 
     Dim x As Single: x = 12
     Dim y As Single: y = 12
 
-    Dim l  As MSForms.Label
+    Dim l  As MSForms.label
     Dim t  As MSForms.TextBox
     Dim cb As MSForms.ComboBox
     Dim b  As MSForms.CommandButton
     Dim fr As MSForms.Frame
 
     Set l = EnsureLabel(Me, "lblTitulo")
-    l.Caption   = "Cargar datos SAB: Transacciones / Clientes"
-    l.Left      = x: l.Top = y: l.Width = 420
+    l.caption = "Cargar datos SAB: Transacciones / Clientes"
+    l.Left = x: l.top = y: l.width = 420
     l.Font.Bold = True: l.Font.Size = 12
     y = y + 26
 
     Set l = EnsureLabel(Me, "lblTipoCarga")
-    l.Caption = "Tipo de dato:"
-    l.Left = x: l.Top = y: l.Width = 110
+    l.caption = "Tipo de dato:"
+    l.Left = x: l.top = y: l.width = 110
     Set cb = EnsureCombo(Me, "cbTipoCarga")
-    cb.Left = x + 120: cb.Top = y - 3: cb.Width = 260
+    cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
     cb.ControlTipText = "Elige si cargar transacciones o clientes."
     AttachCombo cb
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblOperacion")
-    l.Caption = "Tipo de operacion:"
-    l.Left = x: l.Top = y: l.Width = 110
+    l.caption = "Tipo de operacion:"
+    l.Left = x: l.top = y: l.width = 110
     Set cb = EnsureCombo(Me, "cbOperacion")
-    cb.Left = x + 120: cb.Top = y - 3: cb.Width = 260
+    cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
     cb.ControlTipText = "Elige el tipo de operacion."
     AttachCombo cb
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblMeses")
-    l.Caption = "Ultimos meses:"
-    l.Left = x: l.Top = y: l.Width = 110
+    l.caption = "Ultimos meses:"
+    l.Left = x: l.top = y: l.width = 110
     Set t = EnsureTextBox(Me, "txtMeses")
-    t.Left = x + 120: t.Top = y - 3: t.Width = 50
+    t.Left = x + 120: t.top = y - 3: t.width = 50
     t.ControlTipText = "Cantidad de meses a cargar. Por defecto 6."
     y = y + 28
 
     Set l = EnsureLabel(Me, "lblArchivo")
-    l.Caption = "Archivo origen:"
-    l.Left = x: l.Top = y: l.Width = 110
+    l.caption = "Archivo origen:"
+    l.Left = x: l.top = y: l.width = 110
     Set t = EnsureTextBox(Me, "txtArchivo")
-    t.Left = x + 120: t.Top = y - 3: t.Width = 400
+    t.Left = x + 120: t.top = y - 3: t.width = 400
     t.ControlTipText = "Ruta del archivo."
     Set b = EnsureButton(Me, "cmdExaminar")
-    b.Caption = "Examinar...": b.Left = x + 530: b.Top = y - 5: b.Width = 90
+    b.caption = "Examinar...": b.Left = x + 530: b.top = y - 5: b.width = 90
     b.ControlTipText = "Buscar archivo."
     AttachButton b
     y = y + 34
 
     Set fr = EnsureFrame(Me, "fraProg")
-    fr.Caption = " Progreso"
-    fr.Left = x: fr.Top = y: fr.Width = 610: fr.Height = 130
+    fr.caption = " Progreso"
+    fr.Left = x: fr.top = y: fr.width = 610: fr.height = 130
     EnsureProgressControls fr
-    y = y + fr.Height + 10
+    y = y + fr.height + 10
 
     Dim bOK     As MSForms.CommandButton
     Dim bCancel As MSForms.CommandButton
 
     Set bOK = EnsureButton(Me, "cmdCargar")
-    bOK.Caption = "Cargar": bOK.Left = x + 370: bOK.Top = y: bOK.Width = 120
+    bOK.caption = "Cargar": bOK.Left = x + 370: bOK.top = y: bOK.width = 120
     AttachButton bOK
 
     Set bCancel = EnsureButton(Me, "cmdCancelar")
-    bCancel.Caption = "Cancelar": bCancel.Left = x + 500: bCancel.Top = y: bCancel.Width = 120
+    bCancel.caption = "Cancelar": bCancel.Left = x + 500: bCancel.top = y: bCancel.width = 120
     AttachButton bCancel
 
-    Me.Width  = 650
-    Me.Height = y + 90
+    Me.width = 650
+    Me.height = y + 90
 End Sub
 
 Private Sub EnsureProgressControls(ByVal fr As MSForms.Frame)
     Dim txtLog As MSForms.TextBox
-    Set txtLog        = EnsureTextBox(fr, "txtProgLog")
-    txtLog.Left       = 10: txtLog.Top = 18
-    txtLog.Width      = fr.InsideWidth - 20: txtLog.Height = 56
-    txtLog.MultiLine  = True: txtLog.Locked = True
+    Set txtLog = EnsureTextBox(fr, "txtProgLog")
+    txtLog.Left = 10: txtLog.top = 18
+    txtLog.width = fr.InsideWidth - 20: txtLog.height = 56
+    txtLog.Multiline = True: txtLog.Locked = True
     txtLog.ScrollBars = fmScrollBarsVertical
-    txtLog.BackColor  = RGB(255, 255, 255)
+    txtLog.BackColor = RGB(255, 255, 255)
 
-    Dim lbBg     As MSForms.Label
-    Dim lbFill   As MSForms.Label
-    Dim lbPct    As MSForms.Label
-    Dim lbStatus As MSForms.Label
+    Dim lbBg     As MSForms.label
+    Dim lbFill   As MSForms.label
+    Dim lbPct    As MSForms.label
+    Dim lbStatus As MSForms.label
 
     Set lbBg = EnsureLabel(fr, "lblBarBg")
-    lbBg.Left        = 10: lbBg.Top = txtLog.Top + txtLog.Height + 10
-    lbBg.Width       = fr.InsideWidth - 70: lbBg.Height = 12
-    lbBg.BackStyle   = fmBackStyleOpaque: lbBg.BackColor = RGB(230, 230, 230)
-    lbBg.BorderStyle = fmBorderStyleSingle: lbBg.Caption = ""
+    lbBg.Left = 10: lbBg.top = txtLog.top + txtLog.height + 10
+    lbBg.width = fr.InsideWidth - 70: lbBg.height = 12
+    lbBg.BackStyle = fmBackStyleOpaque: lbBg.BackColor = RGB(230, 230, 230)
+    lbBg.BorderStyle = fmBorderStyleSingle: lbBg.caption = ""
 
     Set lbFill = EnsureLabel(fr, "lblBar")
-    lbFill.Left        = lbBg.Left + 1: lbFill.Top = lbBg.Top + 1
-    lbFill.Width       = 0: lbFill.Height = lbBg.Height - 2
-    lbFill.BackStyle   = fmBackStyleOpaque: lbFill.BackColor = RGB(0, 120, 215)
-    lbFill.BorderStyle = fmBorderStyleNone: lbFill.Caption = ""
+    lbFill.Left = lbBg.Left + 1: lbFill.top = lbBg.top + 1
+    lbFill.width = 0: lbFill.height = lbBg.height - 2
+    lbFill.BackStyle = fmBackStyleOpaque: lbFill.BackColor = RGB(0, 120, 215)
+    lbFill.BorderStyle = fmBorderStyleNone: lbFill.caption = ""
 
     Set lbPct = EnsureLabel(fr, "lblPct")
-    lbPct.Left      = lbBg.Left + lbBg.Width + 10
-    lbPct.Top       = lbBg.Top - 2: lbPct.Width = 40: lbPct.Height = 14
-    lbPct.Caption   = "0%": lbPct.TextAlign = fmTextAlignRight
+    lbPct.Left = lbBg.Left + lbBg.width + 10
+    lbPct.top = lbBg.top - 2: lbPct.width = 40: lbPct.height = 14
+    lbPct.caption = "0%": lbPct.TextAlign = fmTextAlignRight
 
     Set lbStatus = EnsureLabel(fr, "lblStatus")
-    lbStatus.Left    = 10: lbStatus.Top = lbBg.Top + lbBg.Height + 8
-    lbStatus.Width   = fr.InsideWidth - 20: lbStatus.Height = 14
-    lbStatus.Caption = ""
+    lbStatus.Left = 10: lbStatus.top = lbBg.top + lbBg.height + 8
+    lbStatus.width = fr.InsideWidth - 20: lbStatus.height = 14
+    lbStatus.caption = ""
 End Sub
 
 ' ==========================
@@ -255,12 +254,12 @@ Private Sub InitCombosDefaults()
         End With
     End If
 
-    If HasControl("txtMeses")   Then Me.Controls("txtMeses").Value   = "6"
+    If HasControl("txtMeses") Then Me.Controls("txtMeses").Value = "6"
     If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Value = ""
 
     ' Al inicio cbOperacion y txtMeses bloqueados
     If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
-    If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = False
+    If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
 
     SetOperacionOptions
 
@@ -368,7 +367,7 @@ Public Sub OnCargar()
             MsgBox "Selecciona el tipo de operacion.", vbExclamation
             GoTo salir
         End If
-        mesesSel = Val(Me.Controls("txtMeses").Value)
+        mesesSel = val(Me.Controls("txtMeses").Value)
         If mesesSel <= 0 Then mesesSel = 6
         opU = UCase$(Trim$(op))
 
@@ -382,7 +381,6 @@ Public Sub OnCargar()
             Else
                 mcMode = "AMBOS"
             End If
-            ProgressToCurrent 0.05, "Creando consultas SAB - Movimiento de Caja..."
             Application.Run "CrearQuerySAB_MC", ruta, mesesSel, mcMode, True
 
         ' --- Cambio de Moneda ---
@@ -447,16 +445,16 @@ Public Sub OnComboChanged(ByVal Name As String)
 
         If tipo = "TRANSACCIONES" Then
             If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = True
-            If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = True
+            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = True
         ElseIf tipo = "CLIENTES" Then
             If HasControl("cbOperacion") Then
                 Me.Controls("cbOperacion").Enabled = False
-                Me.Controls("cbOperacion").Value   = "Seleccionar"
+                Me.Controls("cbOperacion").Value = "Seleccionar"
             End If
             If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
         Else
             If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
-            If HasControl("txtMeses")    Then Me.Controls("txtMeses").Enabled    = False
+            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
         End If
 
         SetStatusOnly 0, "Tipo de dato: " & v
@@ -478,29 +476,28 @@ Private Sub SetStatusOnly(ByVal pct As Double, ByVal msg As String)
     Set fr = GetFrameOrNothing("fraProg")
     If fr Is Nothing Then Exit Sub
 
-    Dim lbBg     As MSForms.Label
-    Dim lbFill   As MSForms.Label
-    Dim lbPct    As MSForms.Label
-    Dim lbStatus As MSForms.Label
+    Dim lbBg     As MSForms.label
+    Dim lbFill   As MSForms.label
+    Dim lbPct    As MSForms.label
+    Dim lbStatus As MSForms.label
 
-    Set lbBg     = GetLabelInFrame(fr, "lblBarBg")
-    Set lbFill   = GetLabelInFrame(fr, "lblBar")
-    Set lbPct    = GetLabelInFrame(fr, "lblPct")
+    Set lbBg = GetLabelInFrame(fr, "lblBarBg")
+    Set lbFill = GetLabelInFrame(fr, "lblBar")
+    Set lbPct = GetLabelInFrame(fr, "lblPct")
     Set lbStatus = GetLabelInFrame(fr, "lblStatus")
 
     If Not lbBg Is Nothing And Not lbFill Is Nothing Then
         Dim wMax As Single
-        wMax = lbBg.Width - 2
+        wMax = lbBg.width - 2
         If wMax < 0 Then wMax = 0
-        lbFill.Width = wMax * pct
-        If pct > 0 And lbFill.Width < 1 Then lbFill.Width = 1
+        lbFill.width = wMax * pct
+        If pct > 0 And lbFill.width < 1 Then lbFill.width = 1
     End If
 
-    If Not lbPct    Is Nothing Then lbPct.Caption    = Format$(pct, "0%")
-    If Not lbStatus Is Nothing Then lbStatus.Caption = msg
+    If Not lbPct Is Nothing Then lbPct.caption = Format$(pct, "0%")
+    If Not lbStatus Is Nothing Then lbStatus.caption = msg
 
     Me.Repaint
-    DoEvents
     On Error GoTo 0
 End Sub
 
@@ -553,8 +550,8 @@ End Sub
 ' ==========================
 ' Helpers: Ensure controls
 ' ==========================
-Private Function EnsureLabel(ByVal parent As Object, ByVal nm As String) As MSForms.Label
-    Dim lb As MSForms.Label
+Private Function EnsureLabel(ByVal parent As Object, ByVal nm As String) As MSForms.label
+    Dim lb As MSForms.label
     On Error Resume Next: Set lb = parent.Controls(nm): On Error GoTo 0
     If lb Is Nothing Then Set lb = parent.Controls.Add("Forms.Label.1", nm, True)
     Set EnsureLabel = lb
@@ -594,7 +591,7 @@ Private Function GetFrameOrNothing(ByVal nm As String) As MSForms.Frame
     On Error GoTo 0
 End Function
 
-Private Function GetLabelInFrame(ByVal fr As MSForms.Frame, ByVal nm As String) As MSForms.Label
+Private Function GetLabelInFrame(ByVal fr As MSForms.Frame, ByVal nm As String) As MSForms.label
     On Error Resume Next
     Set GetLabelInFrame = fr.Controls(nm)
     On Error GoTo 0
@@ -617,8 +614,10 @@ End Sub
 Private Function HasControl(ByVal Name As String) As Boolean
     Dim dummy As Object
     On Error Resume Next
-    Set dummy   = Me.Controls(Name)
-    HasControl  = (Err.Number = 0)
+    Set dummy = Me.Controls(Name)
+    HasControl = (Err.Number = 0)
     Err.Clear
     On Error GoTo 0
 End Function
+
+

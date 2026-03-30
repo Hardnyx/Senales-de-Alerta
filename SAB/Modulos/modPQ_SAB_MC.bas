@@ -8,7 +8,7 @@ Option Explicit
 '==========================
 
 Private Const BUILD_GRAFICOS As Boolean = True
-Private Const TABLE_STYLE    As String  = "TableStyleLight9"
+Private Const TABLE_STYLE    As String = "TableStyleLight9"
 
 Private mAppFrozen          As Boolean
 Private mPrevScreenUpdating As Boolean
@@ -28,24 +28,24 @@ Private Sub SafeApp(ByVal freeze As Boolean)
         If freeze Then
             If Not mAppFrozen Then
                 mPrevScreenUpdating = .ScreenUpdating
-                mPrevEnableEvents   = .EnableEvents
-                mPrevDisplayAlerts  = .DisplayAlerts
-                mPrevCalculation    = .Calculation
-                mPrevStatusBar      = .StatusBar
-                mAppFrozen          = True
+                mPrevEnableEvents = .EnableEvents
+                mPrevDisplayAlerts = .DisplayAlerts
+                mPrevCalculation = .Calculation
+                mPrevStatusBar = .StatusBar
+                mAppFrozen = True
             End If
             .ScreenUpdating = False
-            .EnableEvents   = False
-            .DisplayAlerts  = False
-            .Calculation    = xlCalculationManual
+            .EnableEvents = False
+            .DisplayAlerts = False
+            .Calculation = xlCalculationManual
         Else
             If mAppFrozen Then
                 .ScreenUpdating = mPrevScreenUpdating
-                .EnableEvents   = mPrevEnableEvents
-                .DisplayAlerts  = mPrevDisplayAlerts
-                .Calculation    = mPrevCalculation
-                .StatusBar      = mPrevStatusBar
-                mAppFrozen      = False
+                .EnableEvents = mPrevEnableEvents
+                .DisplayAlerts = mPrevDisplayAlerts
+                .Calculation = mPrevCalculation
+                .StatusBar = mPrevStatusBar
+                mAppFrozen = False
             Else
                 .StatusBar = False
             End If
@@ -89,7 +89,7 @@ Private Function EnsureSheet(ByVal nm As String) As Worksheet
     Dim sh As Worksheet
     On Error Resume Next: Set sh = ThisWorkbook.Worksheets(nm): On Error GoTo 0
     If sh Is Nothing Then
-        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        Set sh = ThisWorkbook.Worksheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
         sh.Name = nm
     End If
     Set EnsureSheet = sh
@@ -135,7 +135,7 @@ End Sub
 
 Private Sub RenameSheetExact(ByVal sh As Worksheet, ByVal desired As String)
     Dim nm As String: nm = SanitizeSheetName(desired)
-    FreeSheetName sh.Parent, nm, sh
+    FreeSheetName sh.parent, nm, sh
     On Error Resume Next: sh.Name = nm: On Error GoTo 0
 End Sub
 
@@ -283,7 +283,7 @@ Private Function EnsurePQConnection(ByVal queryName As String) As WorkbookConnec
     If conn Is Nothing Then
         Dim cs  As String
         Dim cmd As String
-        cs  = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=" & _
+        cs = "OLEDB;Provider=Microsoft.Mashup.OleDb.1;Data Source=$Workbook$;Location=" & _
               queryName & ";Extended Properties=" & Chr$(34) & Chr$(34)
         cmd = "SELECT * FROM [" & queryName & "]"
         On Error Resume Next
@@ -307,9 +307,9 @@ Private Function EnsureTableForConnection(ByVal sh As Worksheet, _
     On Error Resume Next
     If Not lo.QueryTable Is Nothing Then
         With lo.QueryTable
-            .BackgroundQuery    = False
-            .RefreshStyle       = xlOverwriteCells
-            .AdjustColumnWidth  = True
+            .BackgroundQuery = False
+            .RefreshStyle = xlOverwriteCells
+            .AdjustColumnWidth = True
             .PreserveColumnInfo = True
             .Refresh BackgroundQuery:=False
         End With
@@ -415,7 +415,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Dim depName As String: depName = "Dep" & Chr(243) & "sito"
 
     ' --- Leer nombres de columna de loRaw ---
-    Dim nCols As Long: nCols = loRaw.ListColumns.Count
+    Dim nCols As Long: nCols = loRaw.ListColumns.count
     ReDim rawColNames(0 To nCols - 1) As String
     Dim i As Long
     For i = 1 To nCols
@@ -423,26 +423,26 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Next i
 
     ' --- Pick: mapear columnas fuente a indices canonicos ---
-    Dim cFecha  As Long: cFecha  = PickColIdx(rawColNames, "Fecha|FECHA|Fec|FECHA MOV|Fecha Mov")
-    Dim cTrans  As Long: cTrans  = PickColIdx(rawColNames, "Transac|TRANSAC|Transacci" & Chr(243) & "n|Transaccion")
+    Dim cFecha  As Long: cFecha = PickColIdx(rawColNames, "Fecha|FECHA|Fec|FECHA MOV|Fecha Mov")
+    Dim cTrans  As Long: cTrans = PickColIdx(rawColNames, "Transac|TRANSAC|Transacci" & Chr(243) & "n|Transaccion")
     Dim cCuenta As Long: cCuenta = PickColIdx(rawColNames, "Cuenta|CUENTA|Cta|Nro Cuenta|Nro. Cuenta|N" & Chr(186) & " Cuenta")
     Dim cNombre As Long: cNombre = PickColIdx(rawColNames, "Nombre|A La Orden|ALaOrden|A_la_Orden")
-    Dim cOpe    As Long: cOpe    = PickColIdx(rawColNames, "Ope|OPE")
-    Dim cTipo   As Long: cTipo   = PickColIdx(rawColNames, "Tipo|TIPO")
-    Dim cFPag   As Long: cFPag   = PickColIdx(rawColNames, "FPag|F. Pag.|F. Pago|Fecha Pago")
-    Dim cClase  As Long: cClase  = PickColIdx(rawColNames, "Clase|CLASE")
-    Dim cALaOr  As Long: cALaOr  = PickColIdx(rawColNames, "ALaOrden|A La Orden|Nombre")
-    Dim cDep    As Long: cDep    = PickColIdx(rawColNames, depName & "|Deposito|Abono")
-    Dim cRet    As Long: cRet    = PickColIdx(rawColNames, "Retiro|Cargo")
+    Dim cOpe    As Long: cOpe = PickColIdx(rawColNames, "Ope|OPE")
+    Dim cTipo   As Long: cTipo = PickColIdx(rawColNames, "Tipo|TIPO")
+    Dim cFPag   As Long: cFPag = PickColIdx(rawColNames, "FPag|F. Pag.|F. Pago|Fecha Pago")
+    Dim cClase  As Long: cClase = PickColIdx(rawColNames, "Clase|CLASE")
+    Dim cALaOr  As Long: cALaOr = PickColIdx(rawColNames, "ALaOrden|A La Orden|Nombre")
+    Dim cDep    As Long: cDep = PickColIdx(rawColNames, depName & "|Deposito|Abono")
+    Dim cRet    As Long: cRet = PickColIdx(rawColNames, "Retiro|Cargo")
     Dim cCtaLiq As Long: cCtaLiq = PickColIdx(rawColNames, "CtaLiq|Cta Liq|Cta Liquidez|Cuenta Liquidaci" & Chr(243) & "n|Cuenta Liquidacion")
-    Dim cEst    As Long: cEst    = PickColIdx(rawColNames, "Estado|ESTADO")
-    Dim cObs    As Long: cObs    = PickColIdx(rawColNames, "Observaciones|Obs")
-    Dim cMon    As Long: cMon    = PickColIdx(rawColNames, "Moneda")
+    Dim cEst    As Long: cEst = PickColIdx(rawColNames, "Estado|ESTADO")
+    Dim cObs    As Long: cObs = PickColIdx(rawColNames, "Observaciones|Obs")
+    Dim cMon    As Long: cMon = PickColIdx(rawColNames, "Moneda")
 
     If cFecha = 0 Then Exit Function
 
     ' --- Leer datos en array ---
-    Dim nRows As Long: nRows = loRaw.DataBodyRange.Rows.Count
+    Dim nRows As Long: nRows = loRaw.DataBodyRange.rows.count
     Dim raw   As Variant: raw = loRaw.DataBodyRange.Value2
 
     ' --- Target: 15 columnas canonicas de MAIN ---
@@ -473,7 +473,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     ' Diccionario inverso RUC/NIT -> cuentas asociadas (comma-separated)
     Dim dRucCtas As Object: Set dRucCtas = CreateObject("Scripting.Dictionary")
     Dim vkR As Variant, sRucK As String, sCtaK As String
-    For Each vkR In dMain.Keys
+    For Each vkR In dMain.keys
         sCtaK = CleanStr(CStr(vkR))
         Dim sRawK As String: sRawK = CStr(dMain(vkR))
         Dim pipK As Long: pipK = InStr(sRawK, "|")
@@ -570,31 +570,31 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
         r = r + 1
         outArr(r, O_FECHA) = CDbl(CDate(dF))   ' serial numerico para que Excel lo reconozca como fecha
 
-        If cTrans  > 0 Then outArr(r, O_TRANSAC) = raw(i, cTrans)
-        If cCuenta > 0 Then outArr(r, O_CUENTA)  = raw(i, cCuenta)
-        If cNombre > 0 Then outArr(r, O_NOMBRE)  = raw(i, cNombre)
-        If cOpe    > 0 Then outArr(r, O_OPE)     = raw(i, cOpe)
-        If cTipo   > 0 Then outArr(r, O_TIPO)    = raw(i, cTipo)
-        If cFPag   > 0 Then outArr(r, O_FPAG)    = raw(i, cFPag)
+        If cTrans > 0 Then outArr(r, O_TRANSAC) = raw(i, cTrans)
+        If cCuenta > 0 Then outArr(r, O_CUENTA) = raw(i, cCuenta)
+        If cNombre > 0 Then outArr(r, O_NOMBRE) = raw(i, cNombre)
+        If cOpe > 0 Then outArr(r, O_OPE) = raw(i, cOpe)
+        If cTipo > 0 Then outArr(r, O_TIPO) = raw(i, cTipo)
+        If cFPag > 0 Then outArr(r, O_FPAG) = raw(i, cFPag)
         outArr(r, O_CLASE) = sCl
-        If cALaOr  > 0 Then outArr(r, O_ALAOR)   = raw(i, cALaOr)
-        outArr(r, O_DEP)   = finalDep
-        outArr(r, O_RET)   = finalRet
-        If cCtaLiq > 0 Then outArr(r, O_CTALIQ)  = raw(i, cCtaLiq)
-        If cEst    > 0 Then outArr(r, O_EST)      = raw(i, cEst)
-        If cObs    > 0 Then outArr(r, O_OBS)      = raw(i, cObs)
-        If cMon    > 0 Then outArr(r, O_MON)      = raw(i, cMon)
+        If cALaOr > 0 Then outArr(r, O_ALAOR) = raw(i, cALaOr)
+        outArr(r, O_DEP) = finalDep
+        outArr(r, O_RET) = finalRet
+        If cCtaLiq > 0 Then outArr(r, O_CTALIQ) = raw(i, cCtaLiq)
+        If cEst > 0 Then outArr(r, O_EST) = raw(i, cEst)
+        If cObs > 0 Then outArr(r, O_OBS) = raw(i, cObs)
+        If cMon > 0 Then outArr(r, O_MON) = raw(i, cMon)
 
         ' Enriquecer con RUC/NIT y Tipo desde Clientes_SAB
         If cCuenta > 0 Then
             Dim sCtaM As String: sCtaM = CleanStr(CStr(raw(i, cCuenta)))
             If dMain.exists(sCtaM) Then
                 Dim sRawM As String: sRawM = CStr(dMain(sCtaM))
-                Dim pipM  As Long:   pipM  = InStr(sRawM, "|")
+                Dim pipM  As Long:   pipM = InStr(sRawM, "|")
                 If pipM > 0 Then
                     Dim sRucEnr As String: sRucEnr = CleanStr(Left$(sRawM, pipM - 1))
                     outArr(r, O_RUCNIT) = sRucEnr
-                    outArr(r, O_TIPOP)  = UCase$(CleanStr(Mid$(sRawM, pipM + 1)))
+                    outArr(r, O_TIPOP) = UCase$(CleanStr(Mid$(sRawM, pipM + 1)))
                     If dRucCtas.exists(sRucEnr) Then
                         outArr(r, O_CTAS) = CStr(dRucCtas(sRucEnr))
                     End If
@@ -695,16 +695,16 @@ Public Function BuildCuentaDocDict() As Object
             If StrComp(lo.Name, "Clientes_SAB", vbTextCompare) = 0 Then
                 If Not lo.DataBodyRange Is Nothing Then
                     colCta = 0: colDoc = 0: colTipo = 0
-                    For i = 1 To lo.ListColumns.Count
+                    For i = 1 To lo.ListColumns.count
                         Select Case Trim$(lo.ListColumns(i).Name)
-                            Case "Cuenta":   colCta  = i
-                            Case "RUC/NIT":  colDoc  = i
+                            Case "Cuenta":   colCta = i
+                            Case "RUC/NIT":  colDoc = i
                             Case "Tipo":     colTipo = i
                         End Select
                     Next i
                     If colCta > 0 And colDoc > 0 Then
                         Dim data As Variant: data = lo.DataBodyRange.Value2
-                        Dim nR As Long: nR = lo.DataBodyRange.Rows.Count
+                        Dim nR As Long: nR = lo.DataBodyRange.rows.count
                         Dim vC As Variant, vD As Variant, sC As String, sD As String
                         Dim vT As Variant, sT As String
                         For i = 1 To nR
@@ -722,7 +722,7 @@ Public Function BuildCuentaDocDict() As Object
                                     End If
                                 End If
                                 If Len(sC) > 0 And Len(sD) > 0 Then
-                                    If Not d.Exists(sC) Then d.Add sC, sD & "|" & sT
+                                    If Not d.exists(sC) Then d.Add sC, sD & "|" & sT
                                 End If
                             End If
                         Next i
@@ -760,34 +760,34 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
     ' Diccionario Cuenta -> RUC/NIT desde Clientes_SAB
     Dim dCuentaDoc As Object: Set dCuentaDoc = BuildCuentaDocDict()
-    Dim usandoDoc As Boolean: usandoDoc = (dCuentaDoc.Count > 0)
+    Dim usandoDoc As Boolean: usandoDoc = (dCuentaDoc.count > 0)
 
-    Dim colFecha  As Long: colFecha  = 0
+    Dim colFecha  As Long: colFecha = 0
     Dim colCuenta As Long: colCuenta = 0
-    Dim colMonto  As Long: colMonto  = 0
-    Dim colClase  As Long: colClase  = 0
+    Dim colMonto  As Long: colMonto = 0
+    Dim colClase  As Long: colClase = 0
     Dim colMoneda As Long: colMoneda = 0
     Dim i As Long
 
-    For i = 1 To loMain.ListColumns.Count
+    For i = 1 To loMain.ListColumns.count
         Select Case loMain.ListColumns(i).Name
-            Case "Fecha":                      colFecha  = i
+            Case "Fecha":                      colFecha = i
             Case "Cuenta":                     colCuenta = i
             Case depName, "Deposito", "Abono": If op = "DEP" Then colMonto = i
             Case "Retiro", "Cargo":            If op = "RET" Then colMonto = i
-            Case "Clase":                      colClase  = i
+            Case "Clase":                      colClase = i
             Case "Moneda":                     colMoneda = i
         End Select
     Next i
 
     If colCuenta = 0 Or colMonto = 0 Then Exit Function
 
-    Dim nRows As Long: nRows = loMain.DataBodyRange.Rows.Count
+    Dim nRows As Long: nRows = loMain.DataBodyRange.rows.count
     Dim data  As Variant: data = loMain.DataBodyRange.Value2
 
-    Dim dDay    As Object: Set dDay    = CreateObject("Scripting.Dictionary")
-    Dim dMeta   As Object: Set dMeta   = CreateObject("Scripting.Dictionary")
-    Dim dTipo   As Object: Set dTipo   = CreateObject("Scripting.Dictionary")
+    Dim dDay    As Object: Set dDay = CreateObject("Scripting.Dictionary")
+    Dim dMeta   As Object: Set dMeta = CreateObject("Scripting.Dictionary")
+    Dim dTipo   As Object: Set dTipo = CreateObject("Scripting.Dictionary")
     Dim dCuentas As Object: Set dCuentas = CreateObject("Scripting.Dictionary")
 
     Dim vM As Variant, dM As Double
@@ -808,7 +808,7 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
         ' Mapear Cuenta -> RUC/NIT|Tipo (fallback a Cuenta si no hay match)
         Dim sRawVal As String: sRawVal = ""
-        If usandoDoc And dCuentaDoc.Exists(sCuenta) Then
+        If usandoDoc And dCuentaDoc.exists(sCuenta) Then
             sRawVal = CStr(dCuentaDoc(sCuenta))
             Dim pipPos As Long: pipPos = InStr(sRawVal, "|")
             If pipPos > 0 Then
@@ -826,7 +826,7 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
         lF = CLng(CDbl(CDate(dF)))
 
         dayKey = sKey & "|" & CStr(lF)
-        If dDay.Exists(dayKey) Then
+        If dDay.exists(dayKey) Then
             dDay(dayKey) = CDbl(dDay(dayKey)) + dM
         Else
             dDay.Add dayKey, dM
@@ -834,9 +834,9 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
 
         ' Acumular cuentas asociadas a este sKey
         Dim sCuentaKey As String: sCuentaKey = sKey & "|" & sCuenta
-        If Not dCuentas.Exists(sCuentaKey) Then dCuentas.Add sCuentaKey, sCuenta
+        If Not dCuentas.exists(sCuentaKey) Then dCuentas.Add sCuentaKey, sCuenta
 
-        If Not dMeta.Exists(sKey) Then
+        If Not dMeta.exists(sKey) Then
             Dim sCl As String: sCl = ""
             Dim sMn As String: sMn = ""
             If colClase > 0 Then
@@ -856,30 +856,30 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
                 Dim ppAl As Long: ppAl = InStr(sRawVal, "|")
                 If ppAl > 0 Then sTipoAl = Mid$(sRawVal, ppAl + 1)
             End If
-            If Not dTipo.Exists(sKey) Then dTipo.Add sKey, sTipoAl
+            If Not dTipo.exists(sKey) Then dTipo.Add sKey, sTipoAl
         End If
 SkipAl:
     Next i
 
-    Dim dSum  As Object: Set dSum  = CreateObject("Scripting.Dictionary")
-    Dim dNOp  As Object: Set dNOp  = CreateObject("Scripting.Dictionary")
+    Dim dSum  As Object: Set dSum = CreateObject("Scripting.Dictionary")
+    Dim dNOp  As Object: Set dNOp = CreateObject("Scripting.Dictionary")
     Dim dMaxD As Object: Set dMaxD = CreateObject("Scripting.Dictionary")
 
     Dim kk As Variant, pts() As String, sDoc As String, lDate As Long, monDia As Double
-    For Each kk In dDay.Keys
-        pts    = Split(CStr(kk), "|")
-        sDoc   = pts(0)
-        lDate  = CLng(pts(1))
+    For Each kk In dDay.keys
+        pts = Split(CStr(kk), "|")
+        sDoc = pts(0)
+        lDate = CLng(pts(1))
         monDia = CDbl(dDay(kk))
-        If Not dSum.Exists(sDoc) Then
+        If Not dSum.exists(sDoc) Then
             dSum.Add sDoc, 0#: dNOp.Add sDoc, 0&: dMaxD.Add sDoc, 0&
         End If
-        dSum(sDoc)  = CDbl(dSum(sDoc)) + monDia
-        dNOp(sDoc)  = CLng(dNOp(sDoc)) + 1
+        dSum(sDoc) = CDbl(dSum(sDoc)) + monDia
+        dNOp(sDoc) = CLng(dNOp(sDoc)) + 1
         If lDate > CLng(dMaxD(sDoc)) Then dMaxD(sDoc) = lDate
     Next kk
 
-    Dim nDocs As Long: nDocs = dSum.Count
+    Dim nDocs As Long: nDocs = dSum.count
     If nDocs = 0 Then Exit Function
 
     ReDim outArr(1 To nDocs, 1 To 11) As Variant
@@ -889,11 +889,11 @@ SkipAl:
     Dim desv As Variant, nivel As Variant
     Dim metaStr As String, mParts() As String
 
-    For Each sDoc2 In dSum.Keys
-        r      = r + 1
-        suma   = CDbl(dSum(sDoc2))
-        nOp    = CLng(dNOp(sDoc2))
-        prom   = IIf(nOp > 0, suma / nOp, 0)
+    For Each sDoc2 In dSum.keys
+        r = r + 1
+        suma = CDbl(dSum(sDoc2))
+        nOp = CLng(dNOp(sDoc2))
+        prom = IIf(nOp > 0, suma / nOp, 0)
         ultima = CDbl(dDay(CStr(sDoc2) & "|" & CStr(CLng(dMaxD(sDoc2)))))
 
         If prom <> 0 Then
@@ -913,19 +913,19 @@ SkipAl:
         End If
 
         metaStr = ""
-        If dMeta.Exists(CStr(sDoc2)) Then metaStr = CStr(dMeta(CStr(sDoc2)))
+        If dMeta.exists(CStr(sDoc2)) Then metaStr = CStr(dMeta(CStr(sDoc2)))
         mParts = Split(metaStr, "|")
 
         outArr(r, 1) = CleanStr(CStr(sDoc2))
         outArr(r, 2) = mParts(0)
         outArr(r, 3) = IIf(UBound(mParts) >= 1, mParts(1), "")
-        outArr(r, 4) = Round(suma,   2)
+        outArr(r, 4) = Round(suma, 2)
         outArr(r, 5) = nOp
-        outArr(r, 6) = Round(prom,   2)
+        outArr(r, 6) = Round(prom, 2)
         outArr(r, 7) = Round(ultima, 2)
         outArr(r, 8) = desv
-        outArr(r, 9)  = nivel
-        outArr(r, 10) = IIf(dTipo.Exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
+        outArr(r, 9) = nivel
+        outArr(r, 10) = IIf(dTipo.exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
         ' Construir lista de cuentas asociadas separadas por coma
         Dim sCuentasList As String: sCuentasList = ""
         Dim ckk As Variant
@@ -955,26 +955,26 @@ SkipAl:
     For j = 0 To 10: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
     shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 11)).Value = outArr
 
-    Dim loAl As ListObject
-    Set loAl = shAl.ListObjects.Add(xlSrcRange, _
-                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 10)), , xlYes)
-    On Error Resume Next: loAl.Name = loAlName: On Error GoTo 0
-    On Error Resume Next: loAl.TableStyle = TABLE_STYLE: On Error GoTo 0
+    Dim loAL As ListObject
+    Set loAL = shAl.ListObjects.Add(xlSrcRange, _
+                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 11)), , xlYes)
+    On Error Resume Next: loAL.Name = loAlName: On Error GoTo 0
+    On Error Resume Next: loAL.TableStyle = TABLE_STYLE: On Error GoTo 0
 
     On Error Resume Next
-    loAl.Sort.SortFields.Clear
-    loAl.Sort.SortFields.Add Key:=loAl.ListColumns("DESVIACION_MEDIA_%").DataBodyRange, _
+    loAL.Sort.SortFields.Clear
+    loAL.Sort.SortFields.Add key:=loAL.ListColumns("DESVIACION_MEDIA_%").DataBodyRange, _
                               SortOn:=xlSortOnValues, Order:=xlDescending, _
                               DataOption:=xlSortNormal
-    With loAl.Sort
-        .Header      = xlYes
-        .MatchCase   = False
+    With loAL.Sort
+        .header = xlYes
+        .MatchCase = False
         .Orientation = xlTopToBottom
         .Apply
     End With
     On Error GoTo 0
 
-    Set BuildAlertasVBA = loAl
+    Set BuildAlertasVBA = loAL
 End Function
 
 '======================
@@ -986,7 +986,7 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
                              Optional ByVal showProgress As Boolean = False)
     On Error GoTo EH
 
-    mT0Total  = Timer
+    mT0Total = Timer
     mStageLog = vbNullString
 
     If mesesSel <= 0 Then mesesSel = 6
@@ -1000,7 +1000,7 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     ' Solo RAW en PQ
     UpsertWorkbookQuery "SAB_MC_RAW", M_MC_RAW(rutaArchivo)
 
-    Dim shRaw  As Worksheet: Set shRaw  = EnsureSheet("SAB_MC_RAW_WORK")
+    Dim shRaw  As Worksheet: Set shRaw = EnsureSheet("SAB_MC_RAW_WORK")
     Dim shMain As Worksheet: Set shMain = EnsureSheet("SAB_MC_MAIN_WORK")
     ClearSheetButKeepName shRaw
     ClearSheetButKeepName shMain
@@ -1010,12 +1010,12 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     Dim tStage As Double
 
     tStage = Timer
-    Application.StatusBar = "Cargando RAW..."
+    SAB_Progress 0.1, "Cargando RAW..."
     Dim loRaw As ListObject: Set loRaw = EnsureTableForConnection(shRaw, "SAB_MC_RAW", connRaw)
     AppendStageLog "RAW", ElapsedSec(tStage)
 
     tStage = Timer
-    Application.StatusBar = "Construyendo MAIN..."
+    SAB_Progress 0.3, "Construyendo MAIN..."
     Dim loMain As ListObject: Set loMain = BuildMainVBA(loRaw, mesesSel, shMain, "SAB_MC_MAIN")
     AppendStageLog "MAIN", ElapsedSec(tStage)
 
@@ -1025,7 +1025,7 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
 
     If makeDep Then
         tStage = Timer
-        Application.StatusBar = "Calculando alertas DEP..."
+        SAB_Progress 0.55, "Calculando alertas DEP..."
         Set shAlDep = EnsureSheet("SAB_MC_AL_DEP_WORK")
         ClearSheetButKeepName shAlDep
         Set loAlDep = BuildAlertasVBA(loMain, "DEP", shAlDep, "SAB_MC_ALERTAS_DEP")
@@ -1034,7 +1034,7 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
 
     If makeRet Then
         tStage = Timer
-        Application.StatusBar = "Calculando alertas RET..."
+        SAB_Progress 0.7, "Calculando alertas RET..."
         Set shAlRet = EnsureSheet("SAB_MC_AL_RET_WORK")
         ClearSheetButKeepName shAlRet
         Set loAlRet = BuildAlertasVBA(loMain, "RET", shAlRet, "SAB_MC_ALERTAS_RET")
@@ -1056,15 +1056,15 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
     suf = MesAbrevES(ini) & "_" & MesAbrevES(fin) & "_" & Year(fin)
 
     ' Renombrar RAW y MAIN
-    Dim nmRaw  As String: nmRaw  = SanitizeSheetName("SAB_MC_RAW_"  & suf)
-    Dim nmMain As String: nmMain = SanitizeSheetName("SAB_MC_"      & suf)
+    Dim nmRaw  As String: nmRaw = SanitizeSheetName("SAB_MC_RAW_" & suf)
+    Dim nmMain As String: nmMain = SanitizeSheetName("SAB_MC_" & suf)
 
-    DeleteSheetIfExists ThisWorkbook, nmRaw:  FreeSheetName ThisWorkbook, nmRaw,  shRaw
+    DeleteSheetIfExists ThisWorkbook, nmRaw:  FreeSheetName ThisWorkbook, nmRaw, shRaw
     DeleteSheetIfExists ThisWorkbook, nmMain: FreeSheetName ThisWorkbook, nmMain, shMain
     DeleteAllTablesByName ThisWorkbook, nmRaw:  DeleteAllTablesByName ThisWorkbook, nmMain
-    SetTableNameSafe ThisWorkbook, loRaw,  nmRaw
+    SetTableNameSafe ThisWorkbook, loRaw, nmRaw
     SetTableNameSafe ThisWorkbook, loMain, nmMain
-    RenameSheetExact shRaw,  nmRaw
+    RenameSheetExact shRaw, nmRaw
     RenameSheetExact shMain, nmMain
 
     ' Renombrar alertas
@@ -1101,15 +1101,23 @@ Public Sub CrearQuerySAB_MC(ByVal rutaArchivo As String, _
                mStageLog & vbCrLf & vbCrLf & _
                "Total: " & FormatElapsed(ElapsedSec(mT0Total))
 
-    Application.StatusBar = "SAB MC listo. Total " & FormatElapsed(ElapsedSec(mT0Total))
+    SAB_Progress 1#, "SAB MC listo. Total " & FormatElapsed(ElapsedSec(mT0Total))
     Debug.Print totalMsg
     If showProgress Then MsgBox totalMsg, vbInformation, "SAB MC"
 
-    shMain.Activate
-    shMain.Range("A1").Select
+    If makeDep And Not loAlDep Is Nothing Then
+        shAlDep.Activate
+    ElseIf makeRet And Not loAlRet Is Nothing Then
+        shAlRet.Activate
+    Else
+        shMain.Activate
+    End If
+    ActiveSheet.Range("A1").Select
     Exit Sub
 
 EH:
     SafeApp False
     MsgBox "Error en CrearQuerySAB_MC: " & Err.Number & " - " & Err.Description, vbCritical
 End Sub
+
+
