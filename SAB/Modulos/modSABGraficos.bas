@@ -1003,13 +1003,14 @@ Public Sub BuildGraficosCMEnHoja( _
     Dim chartPref As String: chartPref = "GF_CM_" & op & "_"
 
     ' =========================================================
-    ' 1. Extraer candidatos NAT y JUR desde loAL
+    ' 1. Extraer candidatos NAT y JUR desde loAL (solo nivel 2 o 3)
     ' =========================================================
-    Dim iKey As Long, iDv As Long, iPm As Long, iTP As Long
+    Dim iKey As Long, iDv As Long, iPm As Long, iTP As Long, iNR As Long
     iKey = GetColIdx(loAL, "Documento")
     iDv = GetColIdx(loAL, "DESVIACION_MEDIA_%")
     iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
     iTP = GetColIdx(loAL, "TIPO_PERSONA")
+    iNR = GetColIdx(loAL, "NIVEL_RIESGO")
 
     Const buf As Long = 256
     Dim nK(buf) As String, nDv(buf) As Double, nPm(buf) As Double
@@ -1024,6 +1025,11 @@ Public Sub BuildGraficosCMEnHoja( _
 
     Dim ai As Long
     For ai = 1 To UBound(arrAL, 1)
+        If iNR > 0 Then
+            Dim nrVal As Long: nrVal = CLng(SafeDbl(arrAL(ai, iNR)))
+            If nrVal < 2 Then GoTo NextALCM
+        End If
+
         Dim sKey As String: sKey = Trim$(CStr(arrAL(ai, iKey)))
         Dim sDv  As Double: sDv = SafeDbl(arrAL(ai, iDv))
         Dim sPm  As Double: sPm = SafeDbl(arrAL(ai, iPm))
@@ -1033,38 +1039,37 @@ Public Sub BuildGraficosCMEnHoja( _
         If InStr(sTP, "JUR") > 0 Or sTP = "PJ" Then
             If jCnt < buf Then
                 jK(jCnt) = sKey: jDv(jCnt) = sDv: jPm(jCnt) = sPm
-                jTP_a(jCnt) = sTP:  jPH(jCnt) = ""
+                jTP_a(jCnt) = sTP: jPH(jCnt) = ""
                 jCnt = jCnt + 1
             End If
         Else
             If nCnt < buf Then
                 nK(nCnt) = sKey: nDv(nCnt) = sDv: nPm(nCnt) = sPm
-                nTP_a(nCnt) = sTP:  nPH(nCnt) = ""
+                nTP_a(nCnt) = sTP: nPH(nCnt) = ""
                 nCnt = nCnt + 1
             End If
         End If
+NextALCM:
     Next ai
 
     SortDescN nCnt, nK, nDv, nPm, nTP_a, nPH
     SortDescN jCnt, jK, jDv, jPm, jTP_a, jPH
-    If nCnt > MAX_CHARTS \ 2 Then nCnt = MAX_CHARTS \ 2
-    If jCnt > MAX_CHARTS \ 2 Then jCnt = MAX_CHARTS \ 2
+
+    Dim capCharts As Long: capCharts = MAX_CHARTS \ 2
+    If nCnt > capCharts Then nCnt = capCharts
+    If jCnt > capCharts Then jCnt = capCharts
 
     ' =========================================================
-    ' 2. Columnas en loMAIN (deteccion por nombre canonico)
+    ' 2. Columnas en loMAIN
     ' =========================================================
-    Dim iM_doc As Long, iM_fch As Long
-    Dim iM_tp  As Long, iM_mto As Long
+    Dim iM_doc As Long, iM_fch As Long, iM_tp As Long, iM_mto As Long
     iM_doc = GetColIdx(loMain, "Documento")
     iM_fch = GetColIdx(loMain, "Fecha")
     iM_tp = GetColIdx(loMain, "Tipo Persona")
 
-    ' Monto: prioridad Total Neto > Monto Des > Monto Ori > Gan/Per PEN > Gan/Per
     Dim mntCandidatos(4) As String
-    mntCandidatos(0) = "Total Neto"
-    mntCandidatos(1) = "Monto Des"
-    mntCandidatos(2) = "Monto Ori"
-    mntCandidatos(3) = "Gan/Per PEN"
+    mntCandidatos(0) = "Total Neto":  mntCandidatos(1) = "Monto Des"
+    mntCandidatos(2) = "Monto Ori":   mntCandidatos(3) = "Gan/Per PEN"
     mntCandidatos(4) = "Gan/Per"
     Dim mc As Long
     For mc = 0 To 4
@@ -1072,9 +1077,7 @@ Public Sub BuildGraficosCMEnHoja( _
         If iM_mto > 0 Then Exit For
     Next mc
 
-    ' Moneda (para filtrar COM=USD, VEN=PEN)
-    Dim iM_mon As Long
-    iM_mon = GetColIdx(loMain, "Moneda Ori")
+    Dim iM_mon As Long: iM_mon = GetColIdx(loMain, "Moneda Ori")
 
     If iM_doc = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
 
@@ -1086,11 +1089,18 @@ Public Sub BuildGraficosCMEnHoja( _
     ' =========================================================
     Dim wsh As Worksheet
     Set wsh = EnsureHelperSheet(wb, "_GF_CM_" & op & "_HELPER")
-
     DeleteChartsByPrefix ws, chartPref
 
+    ' Limpiar tambien los textboxes de aviso previos
+    Dim shp As Shape
+    On Error Resume Next
+    For Each shp In ws.Shapes
+        If Left$(shp.Name, Len(chartPref)) = chartPref Then shp.Delete
+    Next shp
+    On Error GoTo fin
+
     ' =========================================================
-    ' 4. Posicion a la derecha de loAL, dos columnas NAT/JUR
+    ' 4. Posicion
     ' =========================================================
     Dim lastALCol As Long
     lastALCol = loAL.Range.Column + loAL.Range.Columns.count
@@ -1100,6 +1110,8 @@ Public Sub BuildGraficosCMEnHoja( _
     Dim chartTopBase As Double: chartTopBase = ws.Cells(loAL.Range.Row, 1).top + CHART_TOP_MGN
 
     Dim cliIdx As Long: cliIdx = 0
+    Dim nPlot  As Long: nPlot = 0
+    Dim jPlot  As Long: jPlot = 0
 
     ' =========================================================
     ' 5. Graficos NAT (columna izquierda)
@@ -1125,11 +1137,12 @@ Public Sub BuildGraficosCMEnHoja( _
         titleN = "[NAT] " & opLabel & " " & docLblN & ": " & nK(ci) & _
                  " | Desviacion: " & Format(nDv(ci), "0.00") & "%"
 
-        Dim cTopN As Double: cTopN = chartTopBase + CDbl(ci) * (CHART_H + CHART_GAP_H)
+        Dim cTopN As Double: cTopN = chartTopBase + CDbl(nPlot) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartN, rowsN, nPm(ci), _
                            axMinN, axMaxN, mjUN, _
                            chartLeft1, cTopN, chartPref & "N" & Format(ci + 1, "00"), titleN
         cliIdx = cliIdx + 1
+        nPlot = nPlot + 1
 NextNAT_CM:
     Next ci
 
@@ -1156,13 +1169,73 @@ NextNAT_CM:
         titleJ = "[JUR] " & opLabel & " RUC: " & jK(cj) & _
                  " | Desviacion: " & Format(jDv(cj), "0.00") & "%"
 
-        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(cj) * (CHART_H + CHART_GAP_H)
+        Dim cTopJ As Double: cTopJ = chartTopBase + CDbl(jPlot) * (CHART_H + CHART_GAP_H)
         CreateScatterChart ws, wsh, bStartJ, rowsJ, jPm(cj), _
                            axMinJ, axMaxJ, mjUJ, _
                            chartLeft2, cTopJ, chartPref & "J" & Format(cj + 1, "00"), titleJ
         cliIdx = cliIdx + 1
+        jPlot = jPlot + 1
 NextJUR_CM:
     Next cj
+
+    ' =========================================================
+    ' 7. Avisos informativos si hay menos de capCharts por tipo
+    ' =========================================================
+    On Error Resume Next
+
+    If nPlot < capCharts Then
+        Dim msgN As String
+        msgN = "Solo hay " & nPlot & " cliente(s) Persona Natural en nivel de riesgo no bajo (nivel 2 o 3)."
+        Dim shpN As Shape
+        Set shpN = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
+            chartLeft1, chartTopBase + CDbl(nPlot) * (CHART_H + CHART_GAP_H), CHART_W, 40)
+        If Not shpN Is Nothing Then
+            shpN.Name = chartPref & "NAT_INFO"
+            With shpN.TextFrame2
+                .WordWrap = msoTrue
+                .TextRange.Text = msgN
+                With .TextRange.Font
+                    .Size = 10
+                    .Bold = msoFalse
+                    .Fill.ForeColor.RGB = RGB(80, 80, 80)
+                End With
+                .TextRange.ParagraphFormat.Alignment = msoAlignLeft
+            End With
+            shpN.Fill.ForeColor.RGB = RGB(255, 255, 255)
+            shpN.Fill.Visible = msoTrue
+            shpN.line.Visible = msoTrue
+            shpN.line.ForeColor.RGB = RGB(200, 200, 200)
+            shpN.line.Weight = 0.75
+        End If
+    End If
+
+    If jPlot < capCharts Then
+        Dim msgJ As String
+        msgJ = "Solo hay " & jPlot & " cliente(s) Persona Juridica en nivel de riesgo no bajo (nivel 2 o 3)."
+        Dim shpJ As Shape
+        Set shpJ = ws.Shapes.AddTextbox(msoTextOrientationHorizontal, _
+            chartLeft2, chartTopBase + CDbl(jPlot) * (CHART_H + CHART_GAP_H), CHART_W, 40)
+        If Not shpJ Is Nothing Then
+            shpJ.Name = chartPref & "JUR_INFO"
+            With shpJ.TextFrame2
+                .WordWrap = msoTrue
+                .TextRange.Text = msgJ
+                With .TextRange.Font
+                    .Size = 10
+                    .Bold = msoFalse
+                    .Fill.ForeColor.RGB = RGB(80, 80, 80)
+                End With
+                .TextRange.ParagraphFormat.Alignment = msoAlignLeft
+            End With
+            shpJ.Fill.ForeColor.RGB = RGB(255, 255, 255)
+            shpJ.Fill.Visible = msoTrue
+            shpJ.line.Visible = msoTrue
+            shpJ.line.ForeColor.RGB = RGB(200, 200, 200)
+            shpJ.line.Weight = 0.75
+        End If
+    End If
+
+    On Error GoTo 0
 
 fin:
 End Sub

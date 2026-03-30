@@ -433,26 +433,44 @@ Private Function BuildMainCM_VBA(ByVal loRaw As ListObject, _
     Dim nRows As Long: nRows = loRaw.DataBodyRange.rows.count
     Dim raw As Variant: raw = loRaw.DataBodyRange.Value2
 
-' Parsear fechas, limpiar numeros, sin filtro de rango
+    ' Primera pasada: fecha maxima para derivar rango
+    Dim maxDtRaw As Date: maxDtRaw = 0
+    Dim tmpD As Date, vF As Variant
+    For i = 1 To nRows
+        vF = raw(i, cFecha)
+        If Not (IsEmpty(vF) Or IsNull(vF) Or IsError(vF)) Then
+            tmpD = ParseDDMMMYYYY(CStr(vF))
+            If tmpD > maxDtRaw Then maxDtRaw = tmpD
+        End If
+    Next i
+
+    Dim finMes As Date, iniMes As Date
+    If maxDtRaw > 0 Then
+        finMes = DateSerial(Year(maxDtRaw), Month(maxDtRaw) + 1, 0)
+    Else
+        finMes = DateSerial(Year(Date), Month(Date) + 1, 0)
+    End If
+    iniMes = DateSerial(Year(finMes), Month(finMes) - (mesesSel - 1), 1)
+
+    ' Segunda pasada: filtrar por rango, parsear fechas, limpiar numeros
     ReDim outArr(1 To nRows, 1 To nCols) As Variant
     Dim r As Long: r = 0
-    Dim dF As Date, j As Long, sNum As String, vF As Variant
+    Dim dF As Date, j As Long, sNum As String
 
     For i = 1 To nRows
         vF = raw(i, cFecha)
         If IsEmpty(vF) Or IsNull(vF) Or IsError(vF) Then GoTo SkipMainCM
         dF = ParseDDMMMYYYY(CStr(vF))
         If dF = 0 Then GoTo SkipMainCM
+        If dF < iniMes Or dF > finMes Then GoTo SkipMainCM
 
         r = r + 1
         For j = 1 To nCols
             outArr(r, j) = raw(i, j)
         Next j
 
-        ' Fecha como serial numerico
         outArr(r, cFecha) = CDbl(CDate(dF))
 
-        ' Limpiar numeros con comas (separador de miles anglosajones)
         If cTotNeto > 0 Then
             sNum = CStr(outArr(r, cTotNeto))
             If InStr(sNum, ",") > 0 Then outArr(r, cTotNeto) = CleanNum(sNum)
@@ -818,5 +836,3 @@ EH:
     SafeApp False
     MsgBox "Error en CrearQuerySAB_CM: " & Err.Number & " - " & Err.Description, vbCritical
 End Sub
-
-
