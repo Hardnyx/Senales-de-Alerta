@@ -53,6 +53,7 @@ Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
     If Not lbStatus Is Nothing Then lbStatus.caption = msg
 
     Me.Repaint
+    DoEvents
     On Error GoTo 0
 End Sub
 
@@ -68,6 +69,8 @@ End Sub
 ' Ciclo de vida del form
 ' ==========================
 Private Sub UserForm_Initialize()
+    Set gSABForm = Me
+
     Set gHandlers = New Collection
 
     gSuppressEvents = True
@@ -84,6 +87,9 @@ Private Sub UserForm_Initialize()
 End Sub
 
 Private Sub UserForm_Terminate()
+
+    Set gSABForm = Nothing
+
     EndProgressHook
     On Error Resume Next
     modUF_PollProxy.Detach
@@ -498,6 +504,7 @@ Private Sub SetStatusOnly(ByVal pct As Double, ByVal msg As String)
     If Not lbStatus Is Nothing Then lbStatus.caption = msg
 
     Me.Repaint
+    DoEvents
     On Error GoTo 0
 End Sub
 
@@ -619,5 +626,3 @@ Private Function HasControl(ByVal Name As String) As Boolean
     Err.Clear
     On Error GoTo 0
 End Function
-
-
