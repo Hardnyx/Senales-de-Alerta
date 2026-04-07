@@ -532,15 +532,15 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Dim nRows As Long: nRows = loRaw.DataBodyRange.rows.count
     Dim raw   As Variant: raw = loRaw.DataBodyRange.Value2
 
-    ' Columnas de salida
     Dim TARGET_COLS As Long: TARGET_COLS = 20
 
+    ' Nuevo orden: RUC/NIT y CUENTAS a la derecha de Cuenta
     Const O_FECHA     As Long = 1:  Const O_TRANSAC   As Long = 2:  Const O_CUENTA  As Long = 3
-    Const O_NOMBRE    As Long = 4:  Const O_OPE       As Long = 5:  Const O_TIPO    As Long = 6
-    Const O_FPAG      As Long = 7:  Const O_CLASE     As Long = 8:  Const O_ALAOR   As Long = 9
-    Const O_DEP       As Long = 10: Const O_RET       As Long = 11: Const O_CTALIQ  As Long = 12
-    Const O_EST       As Long = 13: Const O_OBS       As Long = 14: Const O_MON     As Long = 15
-    Const O_RUCNIT    As Long = 16: Const O_TIPOP     As Long = 17: Const O_CTAS    As Long = 18
+    Const O_RUCNIT    As Long = 4:  Const O_TIPOP     As Long = 5:  Const O_CTAS    As Long = 6
+    Const O_NOMBRE    As Long = 7:  Const O_OPE       As Long = 8:  Const O_TIPO    As Long = 9
+    Const O_FPAG      As Long = 10: Const O_CLASE     As Long = 11: Const O_ALAOR   As Long = 12
+    Const O_DEP       As Long = 13: Const O_RET       As Long = 14: Const O_CTALIQ  As Long = 15
+    Const O_EST       As Long = 16: Const O_OBS       As Long = 17: Const O_MON     As Long = 18
     Const O_MONTO_SOL As Long = 19: Const O_TC_RATE   As Long = 20
 
     ReDim outArr(1 To nRows, 1 To TARGET_COLS) As Variant
@@ -551,7 +551,7 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
     Dim vDep As Variant, vRet As Variant, nDep As Double, nRet As Double
     Dim hasDep As Boolean, hasRet As Boolean
 
-    Dim dMain As Object:    Set dMain = BuildCuentaDocDict()
+    Dim dMain    As Object: Set dMain = BuildCuentaDocDict()
     Dim dRucCtas As Object: Set dRucCtas = CreateObject("Scripting.Dictionary")
     Dim vkR As Variant, sRucK As String, sCtaK As String
     For Each vkR In dMain.keys
@@ -665,7 +665,6 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
             outArr(r, O_MONTO_SOL) = montoOrig
             outArr(r, O_TC_RATE) = 1
         ElseIf Not dTC Is Nothing Then
-            ' DEP usa Compra, RET usa Venta
             Dim opTypeRow As String: opTypeRow = IIf(hasDep, "DEP", "RET")
             Dim tcRate As Double: tcRate = GetTCRate(dTC, dF, sCodMon, opTypeRow)
             If tcRate > 0 Then
@@ -682,13 +681,14 @@ Private Function BuildMainVBA(ByVal loRaw As ListObject, _
                 Dim pipM  As Long:   pipM = InStr(sRawM, "|")
                 If pipM > 0 Then
                     Dim sRucEnr As String: sRucEnr = CleanStr(Left$(sRawM, pipM - 1))
-                    outArr(r, O_RUCNIT) = sRucEnr
+                    ' Guardar como string para preservar ceros iniciales (DNI con 0)
+                    outArr(r, O_RUCNIT) = "'" & sRucEnr
                     outArr(r, O_TIPOP) = UCase$(CleanStr(Mid$(sRawM, pipM + 1)))
                     If dRucCtas.exists(sRucEnr) Then
                         outArr(r, O_CTAS) = CStr(dRucCtas(sRucEnr))
                     End If
                 Else
-                    outArr(r, O_RUCNIT) = CleanStr(sRawM)
+                    outArr(r, O_RUCNIT) = "'" & CleanStr(sRawM)
                 End If
             End If
         End If
@@ -703,12 +703,15 @@ SkipRow:
     ClearSheetButKeepName shMain
 
     Dim hdrs As Variant
-    hdrs = Array("Fecha", "Transac", "Cuenta", "Nombre", "Ope", "Tipo", "FPag", _
-             "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", "Moneda", _
-             "RUC/NIT", "TIPO_PERSONA", "Cuentas pertenecientes al mismo RUC/NIT", _
-             "Monto en Soles", "TC Aplicado")
+    hdrs = Array("Fecha", "Transac", "Cuenta", "RUC/NIT", "TIPO_PERSONA", _
+                 "Cuentas pertenecientes al mismo RUC/NIT", "Nombre", "Ope", "Tipo", "FPag", _
+                 "Clase", "ALaOrden", depName, "Retiro", "CtaLiq", "Estado", "Observaciones", _
+                 "Moneda", "Monto en Soles", "TC Aplicado")
     Dim j As Long
     For j = 0 To UBound(hdrs): shMain.Cells(1, j + 1).Value = hdrs(j): Next j
+
+    ' Pre-formatear columna RUC/NIT como texto antes de escribir el array
+    shMain.Range(shMain.Cells(2, O_RUCNIT), shMain.Cells(r + 1, O_RUCNIT)).NumberFormat = "@"
 
     shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, TARGET_COLS)).Value = outArr
     shMain.Columns(O_FECHA).NumberFormat = "dd/mm/yyyy"
@@ -719,9 +722,11 @@ SkipRow:
     On Error Resume Next: loMain.Name = loMainName: On Error GoTo 0
     On Error Resume Next: loMain.TableStyle = TABLE_STYLE: On Error GoTo 0
 
+    ' AutoFit todas las columnas
+    On Error Resume Next: shMain.Cells.EntireColumn.AutoFit: On Error GoTo 0
+
     Set BuildMainVBA = loMain
 End Function
-
 '======================
 ' QuickSort
 '======================
@@ -835,7 +840,6 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim colCuenta   As Long: colCuenta = 0
     Dim colMonto    As Long: colMonto = 0
     Dim colClase    As Long: colClase = 0
-    Dim colMoneda   As Long: colMoneda = 0
     Dim colMontoSol As Long: colMontoSol = 0
     Dim i As Long
 
@@ -846,7 +850,6 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
             Case depName, "Deposito", "Abono": If op = "DEP" Then colMonto = i
             Case "Retiro", "Cargo":            If op = "RET" Then colMonto = i
             Case "Clase":                      colClase = i
-            Case "Moneda":                     colMoneda = i
             Case "Monto en Soles":             colMontoSol = i
         End Select
     Next i
@@ -909,19 +912,14 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
         If Not dCuentas.exists(sCuentaKey) Then dCuentas.Add sCuentaKey, sCuenta
 
         If Not dMeta.exists(sKey) Then
+            ' Solo almacena Clase (MONEDA eliminada del output)
             Dim sCl As String: sCl = ""
-            Dim sMn As String: sMn = ""
             If colClase > 0 Then
                 If Not IsEmpty(data(i, colClase)) And Not IsNull(data(i, colClase)) Then
                     sCl = Trim$(CStr(data(i, colClase)))
                 End If
             End If
-            If colMoneda > 0 Then
-                If Not IsEmpty(data(i, colMoneda)) And Not IsNull(data(i, colMoneda)) Then
-                    sMn = Trim$(CStr(data(i, colMoneda)))
-                End If
-            End If
-            dMeta.Add sKey, sCl & "|" & sMn
+            dMeta.Add sKey, sCl
             Dim sTipoAl As String: sTipoAl = ""
             If usandoDoc And Len(sRawVal) > 0 Then
                 Dim ppAl As Long: ppAl = InStr(sRawVal, "|")
@@ -953,12 +951,13 @@ SkipAl:
     Dim nDocs As Long: nDocs = dSum.count
     If nDocs = 0 Then Exit Function
 
-    ReDim outArr(1 To nDocs, 1 To 11) As Variant
+    ' 10 columnas: TIPO_PERSONA, RUC/NIT, CUENTAS, CLASE,
+    '              SUMA, NUM_OP, PROMEDIO, ULTIMA, DESV, NIVEL
+    ReDim outArr(1 To nDocs, 1 To 10) As Variant
     Dim r As Long: r = 0
     Dim sDoc2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
     Dim desv As Variant, nivel As Variant
-    Dim metaStr As String, mParts() As String
 
     For Each sDoc2 In dSum.keys
         r = r + 1
@@ -983,21 +982,6 @@ SkipAl:
             nivel = 3
         End If
 
-        metaStr = ""
-        If dMeta.exists(CStr(sDoc2)) Then metaStr = CStr(dMeta(CStr(sDoc2)))
-        mParts = Split(metaStr, "|")
-
-        outArr(r, 1) = CleanStr(CStr(sDoc2))
-        outArr(r, 2) = mParts(0)
-        outArr(r, 3) = IIf(UBound(mParts) >= 1, mParts(1), "")
-        outArr(r, 4) = Round(suma, 2)
-        outArr(r, 5) = nOp
-        outArr(r, 6) = Round(prom, 2)
-        outArr(r, 7) = Round(ultima, 2)
-        outArr(r, 8) = desv
-        outArr(r, 9) = nivel
-        outArr(r, 10) = IIf(dTipo.exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
-
         Dim sCuentasList As String: sCuentasList = ""
         Dim ckk As Variant
         For Each ckk In dCuentas.keys
@@ -1010,23 +994,38 @@ SkipAl:
                 End If
             End If
         Next ckk
-        outArr(r, 11) = sCuentasList
+
+        ' Nuevo orden: TIPO_PERSONA, RUC/NIT, CUENTAS, CLASE, ...metricas
+        outArr(r, 1) = IIf(dTipo.exists(CStr(sDoc2)), CStr(dTipo(CStr(sDoc2))), "")
+        outArr(r, 2) = "'" & CleanStr(CStr(sDoc2))    ' prefijo ' preserva ceros iniciales (DNI)
+        outArr(r, 3) = sCuentasList
+        outArr(r, 4) = IIf(dMeta.exists(CStr(sDoc2)), CStr(dMeta(CStr(sDoc2))), "")
+        outArr(r, 5) = Round(suma, 2)
+        outArr(r, 6) = nOp
+        outArr(r, 7) = Round(prom, 2)
+        outArr(r, 8) = Round(ultima, 2)
+        outArr(r, 9) = desv
+        outArr(r, 10) = nivel
     Next sDoc2
 
     ClearSheetButKeepName shAl
 
     Dim keyHdr As String: keyHdr = IIf(usandoDoc, "RUC/NIT", "Cuenta")
     Dim hdrs As Variant
-    hdrs = Array(keyHdr, "CLASE", "MONEDA", "SUMA_MONTOS_SOLES", "NUM_OPERACIONES", _
-                 "PROMEDIO_MONTOS_SOLES", "ULTIMA_OPERACION_SOLES", "DESVIACION_MEDIA_%", _
-                 "NIVEL_RIESGO", "TIPO_PERSONA", "CUENTAS")
+    hdrs = Array("TIPO_PERSONA", keyHdr, "CUENTAS", "CLASE", _
+                 "SUMA_MONTOS_SOLES", "NUM_OPERACIONES", "PROMEDIO_MONTOS_SOLES", _
+                 "ULTIMA_OPERACION_SOLES", "DESVIACION_MEDIA_%", "NIVEL_RIESGO")
     Dim j As Long
-    For j = 0 To 10: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
-    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 11)).Value = outArr
+    For j = 0 To 9: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
+
+    ' Pre-formatear columna RUC/NIT (col 2) como texto antes de escribir
+    shAl.Range(shAl.Cells(2, 2), shAl.Cells(nDocs + 1, 2)).NumberFormat = "@"
+
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 10)).Value = outArr
 
     Dim loAL As ListObject
     Set loAL = shAl.ListObjects.Add(xlSrcRange, _
-                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 11)), , xlYes)
+                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 10)), , xlYes)
     On Error Resume Next: loAL.Name = loAlName: On Error GoTo 0
     On Error Resume Next: loAL.TableStyle = TABLE_STYLE: On Error GoTo 0
 
@@ -1043,9 +1042,11 @@ SkipAl:
     End With
     On Error GoTo 0
 
+    ' AutoFit todas las columnas
+    On Error Resume Next: shAl.Cells.EntireColumn.AutoFit: On Error GoTo 0
+
     Set BuildAlertasVBA = loAL
 End Function
-
 '======================
 ' Punto de entrada publico
 '======================
