@@ -268,7 +268,9 @@ Public Function LoadTipoCambioDict(ByVal rutaTC As String, _
 
     Dim wb As Workbook
     On Error Resume Next
+    Application.ScreenUpdating = False
     Set wb = Workbooks.Open(rutaTC, ReadOnly:=True, UpdateLinks:=False)
+    Application.ScreenUpdating = True
     On Error GoTo 0
     If wb Is Nothing Then Exit Function
 
@@ -324,6 +326,80 @@ NextTC:
         Dim nmHoja As String: nmHoja = SanitizeSheetName("SAB_TC_" & sufTC)
         CrearHojaTipoCambio data, nRows, nmHoja
     End If
+End Function
+
+'======================
+' TryRebuildTCDictFromSheet
+' Intenta reconstruir gTCDict desde la hoja SAB_TC_* del workbook.
+' Devuelve True si lo logro.
+'======================
+Public Function TryRebuildTCDictFromSheet() As Boolean
+    TryRebuildTCDictFromSheet = False
+    Dim ws As Worksheet
+    Dim lo As ListObject
+    Dim shTC As Worksheet
+
+    ' Buscar la primera hoja cuyo nombre empiece por SAB_TC_
+    For Each ws In ThisWorkbook.Worksheets
+        If Left$(UCase$(ws.Name), 7) = "SAB_TC_" Then
+            Set shTC = ws
+            Exit For
+        End If
+    Next ws
+    If shTC Is Nothing Then Exit Function
+
+    ' Buscar ListObject en esa hoja
+    For Each lo In shTC.ListObjects
+        If lo.DataBodyRange Is Nothing Then GoTo NextLO
+        Dim colFecha As Long, colCod As Long, colComp As Long, colVenta As Long
+        Dim i As Long
+        colFecha = 0: colCod = 0: colComp = 0: colVenta = 0
+        For i = 1 To lo.ListColumns.count
+            Select Case UCase$(Trim$(lo.ListColumns(i).Name))
+                Case "FECHA":   colFecha = i
+                Case "CODIGO":  colCod = i
+                Case "COMPRA":  colComp = i
+                Case "VENTA":   colVenta = i
+            End Select
+        Next i
+        If colFecha = 0 Or colCod = 0 Or colComp = 0 Then GoTo NextLO
+
+        Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+        Dim data As Variant: data = lo.DataBodyRange.Value2
+        Dim nR As Long: nR = lo.DataBodyRange.rows.count
+
+        For i = 1 To nR
+            Dim vF As Variant: vF = data(i, colFecha)
+            Dim sCod As String: sCod = UCase$(Trim$(CStr(data(i, colCod))))
+            If IsEmpty(vF) Or Len(sCod) = 0 Or sCod = "PEN" Then GoTo NextRow
+
+            Dim dF As Date
+            On Error Resume Next: dF = CDate(vF)
+            If Err.Number <> 0 Then Err.Clear: On Error GoTo 0: GoTo NextRow
+            On Error GoTo 0
+
+            Dim serial As String: serial = CStr(CLng(CDbl(dF)))
+            Dim keyC As String: keyC = "COMP|" & serial & "|" & sCod
+            Dim keyV As String: keyV = "VENT|" & serial & "|" & sCod
+
+            If Not IsEmpty(data(i, colComp)) And Not d.exists(keyC) Then
+                d.Add keyC, CDbl(data(i, colComp))
+            End If
+            If colVenta > 0 Then
+                If Not IsEmpty(data(i, colVenta)) And Not d.exists(keyV) Then
+                    d.Add keyV, CDbl(data(i, colVenta))
+                End If
+            End If
+NextRow:
+        Next i
+
+        If d.count > 0 Then
+            Set gTCDict = d
+            TryRebuildTCDictFromSheet = True
+        End If
+        Exit Function
+NextLO:
+    Next lo
 End Function
 
 Private Function GetTCRate(ByVal dTC As Object, _

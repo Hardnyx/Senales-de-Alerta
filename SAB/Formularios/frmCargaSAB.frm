@@ -272,6 +272,12 @@ Private Sub InitCombosDefaults()
     If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
 
     SetOperacionOptions
+    ' Si gTCDict se perdio por reset de VBA pero la hoja TC existe, reconstruir
+    If gTCDict Is Nothing Or gTCDict.count = 0 Then
+        On Error Resume Next
+        modPQ_SAB_MC.TryRebuildTCDictFromSheet
+        On Error GoTo 0
+    End If
     RefreshTCEstado
 
     gSuppressEvents = False
