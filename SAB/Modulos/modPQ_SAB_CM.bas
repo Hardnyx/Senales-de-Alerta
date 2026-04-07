@@ -402,6 +402,8 @@ End Function
 ' BuildMainCM_VBA
 ' Parsea fechas DDMMMYYYY, filtra por rango de meses,
 ' limpia numeros con separador de miles.
+' Renombra la columna de cuenta (encabezado vacio del TSV) y agrega
+' columna con todas las cuentas asociadas al mismo numero de documento.
 '======================
 Private Function BuildMainCM_VBA(ByVal loRaw As ListObject, _
                                   ByVal mesesSel As Long, _
@@ -417,14 +419,25 @@ Private Function BuildMainCM_VBA(ByVal loRaw As ListObject, _
     Dim cTotNeto As Long: cTotNeto = 0
     Dim cMtoOri  As Long: cMtoOri = 0
     Dim cMtoDes  As Long: cMtoDes = 0
+    Dim cDoc     As Long: cDoc = 0
+    Dim cCuenta  As Long: cCuenta = 0
 
     Dim i As Long
     For i = 1 To nCols
-        Select Case NormHdr(loRaw.ListColumns(i).Name)
+        Dim sHdrN As String: sHdrN = NormHdr(loRaw.ListColumns(i).Name)
+        Select Case sHdrN
             Case "FECHA":      cFecha = i
             Case "TOTAL NETO": cTotNeto = i
             Case "MONTO ORI":  cMtoOri = i
             Case "MONTO DES":  cMtoDes = i
+            Case "DOCUMENTO":  cDoc = i
+            Case Else
+                ' Captura la primera columna auto-nombrada por Excel (encabezado vacio en TSV)
+                If cCuenta = 0 Then
+                    If Left$(sHdrN, 7) = "COLUMNA" Or Left$(sHdrN, 6) = "COLUMN" Then
+                        cCuenta = i
+                    End If
+                End If
         End Select
     Next i
 
@@ -488,16 +501,41 @@ SkipMainCM:
 
     If r = 0 Then Exit Function
 
+    ' Construir diccionario Documento -> cuentas unicas (sobre filas filtradas)
+    Dim dDocCtas     As Object: Set dDocCtas = CreateObject("Scripting.Dictionary")
+    Dim dDocCtasSeen As Object: Set dDocCtasSeen = CreateObject("Scripting.Dictionary")
+
+    If cDoc > 0 And cCuenta > 0 Then
+        Dim rr As Long
+        For rr = 1 To r
+            Dim sDocK As String: sDocK = Trim$(CStr(outArr(rr, cDoc)))
+            Dim sCtaK As String: sCtaK = Trim$(CStr(outArr(rr, cCuenta)))
+            If Len(sDocK) = 0 Or Len(sCtaK) = 0 Then GoTo NextDC
+            Dim seenKey As String: seenKey = sDocK & "|" & sCtaK
+            If Not dDocCtasSeen.exists(seenKey) Then
+                dDocCtasSeen.Add seenKey, 1
+                If dDocCtas.exists(sDocK) Then
+                    dDocCtas(sDocK) = dDocCtas(sDocK) & ", " & sCtaK
+                Else
+                    dDocCtas.Add sDocK, sCtaK
+                End If
+            End If
+NextDC:
+        Next rr
+    End If
+
     ClearSheetButKeepName shMain
 
+    ' Escribir encabezados, renombrando la columna de cuenta si corresponde
     For j = 1 To nCols
-        shMain.Cells(1, j).Value = loRaw.ListColumns(j).Name
+        Dim hdrVal As String: hdrVal = loRaw.ListColumns(j).Name
+        If j = cCuenta Then hdrVal = "Cuenta"
+        shMain.Cells(1, j).Value = hdrVal
     Next j
 
-    ' Después:
     shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, nCols)).NumberFormat = "@"
     shMain.Range(shMain.Cells(2, 1), shMain.Cells(r + 1, nCols)).Value = outArr
-    
+
     ' Re-escribir columnas numericas como numeros reales
     Dim numColsCM(3) As Long
     numColsCM(0) = cFecha: numColsCM(1) = cTotNeto
@@ -522,9 +560,26 @@ SkipMainCM:
     On Error Resume Next: loMain.Name = loMainName: On Error GoTo 0
     On Error Resume Next: loMain.TableStyle = TABLE_STYLE: On Error GoTo 0
 
+    ' Agregar columna de cuentas asociadas al mismo NRO DOC
+    If cDoc > 0 And cCuenta > 0 And dDocCtas.count > 0 Then
+        On Error Resume Next
+        Dim lcNew As ListColumn
+        Set lcNew = loMain.ListColumns.Add(Position:=cCuenta + 1)
+        lcNew.Name = "Cuentas pertenecientes al mismo NRO DOC"
+
+        Dim rr2 As Long
+        For rr2 = 1 To loMain.DataBodyRange.rows.count
+            Dim sDocV As String
+            sDocV = Trim$(CStr(loMain.DataBodyRange.Cells(rr2, cDoc).Value))
+            If dDocCtas.exists(sDocV) Then
+                lcNew.DataBodyRange.Cells(rr2, 1).Value = CStr(dDocCtas(sDocV))
+            End If
+        Next rr2
+        On Error GoTo 0
+    End If
+
     Set BuildMainCM_VBA = loMain
 End Function
-
 '======================
 ' BuildAlertasCM_VBA
 ' Agrupa loMain por Documento, filtra por Moneda Ori.

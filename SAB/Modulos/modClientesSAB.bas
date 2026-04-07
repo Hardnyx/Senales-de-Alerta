@@ -17,6 +17,18 @@ Public Sub CrearQueryClientesSAB(ByVal rutaArchivo As String, Optional ByVal sho
         Err.Raise vbObjectError + 2, , "El archivo no existe: " & rutaArchivo
     End If
 
+    ' Validar formato antes de continuar
+    Dim motivo As String
+    If Not ValidarFormatoClientesSAB(rutaArchivo, motivo) Then
+        If showMsgs Then
+            MsgBox "El archivo no tiene el formato esperado de Clientes SAB." & vbCrLf & vbCrLf & _
+                   motivo & vbCrLf & vbCrLf & _
+                   "Se requieren al menos las columnas: Cuenta, RUC/NIT.", _
+                   vbExclamation, "Formato incorrecto"
+        End If
+        Exit Sub
+    End If
+
     Dim wb As Workbook
     Set wb = ThisWorkbook
 
@@ -164,7 +176,7 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
     On Error GoTo 0
 
     If sh Is Nothing Then
-        Set sh = wb.Worksheets.Add(After:=wb.Sheets(wb.Sheets.Count))
+        Set sh = wb.Worksheets.Add(After:=wb.Sheets(wb.Sheets.count))
         sh.Name = SH_NAME
     Else
         sh.Cells.Clear
@@ -197,20 +209,22 @@ Private Sub LoadClientesSAB(ByVal wb As Workbook, ByVal showMsgs As Boolean)
         Destination:=sh.Range("A1"))
 
     On Error Resume Next
-    With lo.QueryTable
-        .BackgroundQuery    = False
-        .RefreshStyle       = xlOverwriteCells
-        .AdjustColumnWidth  = True
-        .PreserveColumnInfo = True
-        .Refresh BackgroundQuery:=False
-    End With
+        With lo.QueryTable
+            .BackgroundQuery = False
+            .RefreshStyle = xlOverwriteCells
+            .AdjustColumnWidth = True
+            .PreserveColumnInfo = True
+            SAB_SetPQRefreshing True
+            .Refresh BackgroundQuery:=False
+            SAB_SetPQRefreshing False
+        End With
     Application.CalculateUntilAsyncQueriesDone
     On Error GoTo 0
 
     ' 5) Nombre y estilo
     On Error Resume Next
-    lo.Name         = LO_NAME
-    lo.TableStyle   = "TableStyleLight14"
+    lo.Name = LO_NAME
+    lo.TableStyle = "TableStyleLight14"
     On Error GoTo 0
 
     ' 6) Posicion
@@ -231,3 +245,63 @@ EH_Load:
              "y que Power Query pueda acceder al archivo."
     If showMsgs Then MsgBox errMsg, vbCritical, "Error - Clientes SAB"
 End Sub
+
+' ==========================
+' Valida que el archivo TSV tenga el formato minimo esperado.
+' Devuelve True si es valido; False con motivo en el parametro de salida.
+' ==========================
+Private Function ValidarFormatoClientesSAB(ByVal rutaArchivo As String, _
+                                            ByRef motivo As String) As Boolean
+    ValidarFormatoClientesSAB = False
+    motivo = ""
+
+    Dim fileNum As Integer
+    fileNum = FreeFile
+    Dim primeraLinea As String
+
+    On Error GoTo errLectura
+    Open rutaArchivo For Input Access Read As #fileNum
+    If Not EOF(fileNum) Then Line Input #fileNum, primeraLinea
+    Close #fileNum
+    On Error GoTo 0
+
+    If Len(Trim$(primeraLinea)) = 0 Then
+        motivo = "El archivo est" & Chr(225) & " vac" & Chr(237) & "o o no tiene encabezados."
+        Exit Function
+    End If
+
+    ' Normalizar: separador puede ser tab
+    Dim cols() As String
+    cols = Split(primeraLinea, vbTab)
+
+    ' Construir set de columnas presentes (en mayusculas, sin espacios extra)
+    Dim dCols As Object: Set dCols = CreateObject("Scripting.Dictionary")
+    Dim k As Long
+    For k = 0 To UBound(cols)
+        Dim colNorm As String
+        colNorm = UCase$(Trim$(Replace(cols(k), Chr(160), "")))
+        If Len(colNorm) > 0 Then
+            If Not dCols.exists(colNorm) Then dCols.Add colNorm, True
+        End If
+    Next k
+
+    ' Columnas minimas requeridas
+    Dim faltantes As String: faltantes = ""
+    If Not dCols.exists("CUENTA") Then faltantes = faltantes & "  - Cuenta" & vbCrLf
+    If Not dCols.exists("RUC/NIT") And Not dCols.exists("RUCNIT") Then
+        faltantes = faltantes & "  - RUC/NIT" & vbCrLf
+    End If
+
+    If Len(faltantes) > 0 Then
+        motivo = "Columnas faltantes:" & vbCrLf & faltantes & _
+                 "Columnas encontradas: " & Join(cols, ", ")
+        Exit Function
+    End If
+
+    ValidarFormatoClientesSAB = True
+    Exit Function
+
+errLectura:
+    Close #fileNum
+    motivo = "No se pudo leer el archivo: " & Err.Description
+End Function
