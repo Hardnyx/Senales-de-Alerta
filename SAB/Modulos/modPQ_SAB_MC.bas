@@ -919,19 +919,23 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim colMontoSol As Long: colMontoSol = 0
     Dim i As Long
 
+    Dim colFiltro As Long: colFiltro = 0   ' columna DEP o RET para filtrar filas
+
     For i = 1 To loMain.ListColumns.count
         Select Case loMain.ListColumns(i).Name
             Case "Fecha":                      colFecha = i
             Case "Cuenta":                     colCuenta = i
-            Case depName, "Deposito", "Abono": If op = "DEP" Then colMonto = i
-            Case "Retiro", "Cargo":            If op = "RET" Then colMonto = i
+            Case depName, "Deposito", "Abono": If op = "DEP" Then colFiltro = i
+            Case "Retiro", "Cargo":            If op = "RET" Then colFiltro = i
             Case "Clase":                      colClase = i
             Case "Monto en Soles":             colMontoSol = i
         End Select
     Next i
 
-    ' Usar Monto en Soles si esta disponible
-    If colMontoSol > 0 Then colMonto = colMontoSol
+    ' colFiltro determina que filas incluir (DEP o RET con valor distinto de cero).
+    ' colMonto es el valor a sumar: Monto en Soles si existe, sino la columna original.
+    If colFiltro = 0 Then Exit Function
+    colMonto = IIf(colMontoSol > 0, colMontoSol, colFiltro)
 
     If colCuenta = 0 Or colMonto = 0 Then Exit Function
 
@@ -949,6 +953,13 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim dayKey As String
 
     For i = 1 To nRows
+        ' Verificar que la fila corresponde a la operacion (DEP o RET)
+        Dim vFiltro As Variant: vFiltro = data(i, colFiltro)
+        If IsEmpty(vFiltro) Or IsNull(vFiltro) Or IsError(vFiltro) Then GoTo SkipAl
+        Dim dFiltro As Double
+        On Error Resume Next: dFiltro = CDbl(vFiltro): On Error GoTo 0
+        If dFiltro = 0 Then GoTo SkipAl
+
         vM = data(i, colMonto)
         If IsEmpty(vM) Or IsNull(vM) Or IsError(vM) Then GoTo SkipAl
         On Error Resume Next: dM = CDbl(vM): On Error GoTo 0
@@ -1304,25 +1315,47 @@ End Sub
 
 Private Sub CrearHojaTipoCambio(ByRef data As Variant, ByVal nRows As Long, _
                                  ByVal nmHoja As String)
+    ' nmHoja ignorado: siempre se usa "SAB_TC" como nombre fijo
     Dim shTC As Worksheet
-    On Error Resume Next: Set shTC = ThisWorkbook.Worksheets(nmHoja): On Error GoTo 0
+    Dim nmFijo As String: nmFijo = "SAB_TC"
+
+    On Error Resume Next: Set shTC = ThisWorkbook.Worksheets(nmFijo): On Error GoTo 0
     If shTC Is Nothing Then
         Set shTC = ThisWorkbook.Worksheets.Add( _
             After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
-    Else
-        shTC.Cells.Clear
+        On Error Resume Next: shTC.Name = nmFijo: On Error GoTo 0
+        shTC.Cells(1, 1).Value = "FECHA"
+        shTC.Cells(1, 2).Value = "CODIGO"
+        shTC.Cells(1, 3).Value = "MONEDA"
+        shTC.Cells(1, 4).Value = "Compra"
+        shTC.Cells(1, 5).Value = "Venta"
     End If
-    On Error Resume Next: shTC.Name = nmHoja: On Error GoTo 0
 
-    ' Encabezados
-    shTC.Cells(1, 1).Value = "FECHA"
-    shTC.Cells(1, 2).Value = "CODIGO"
-    shTC.Cells(1, 3).Value = "MONEDA"
-    shTC.Cells(1, 4).Value = "Compra"
-    shTC.Cells(1, 5).Value = "Venta"
+    ' Construir diccionario de claves ya existentes en la hoja: "SERIAL|COD"
+    Dim dExist As Object: Set dExist = CreateObject("Scripting.Dictionary")
+    Dim lastRow As Long
+    lastRow = shTC.Cells(shTC.rows.count, 1).End(xlUp).Row
+    If lastRow > 1 Then
+        Dim arrExist As Variant
+        arrExist = shTC.Range(shTC.Cells(2, 1), shTC.Cells(lastRow, 2)).Value2
+        Dim ex As Long
+        For ex = 1 To UBound(arrExist, 1)
+            Dim vFEx As Variant: vFEx = arrExist(ex, 1)
+            Dim sCodEx As String: sCodEx = UCase$(Trim$(CStr(arrExist(ex, 2))))
+            If Not IsEmpty(vFEx) And Len(sCodEx) > 0 Then
+                Dim dFEx As Date
+                On Error Resume Next: dFEx = CDate(vFEx): On Error GoTo 0
+                If Not IsError(dFEx) Then
+                    Dim exKey As String
+                    exKey = CStr(CLng(CDbl(dFEx))) & "|" & sCodEx
+                    If Not dExist.exists(exKey) Then dExist.Add exKey, True
+                End If
+            End If
+        Next ex
+    End If
 
-    ' Datos
-    Dim i As Long, r As Long: r = 2
+    ' Agregar solo filas nuevas
+    Dim i As Long, r As Long: r = lastRow + 1
     For i = 2 To nRows
         Dim sCod As String: sCod = UCase$(Trim$(CStr(data(i, 2))))
         If sCod = "PEN" Or Len(sCod) = 0 Then GoTo NextRow
@@ -1333,24 +1366,37 @@ Private Sub CrearHojaTipoCambio(ByRef data As Variant, ByVal nRows As Long, _
         If Err.Number <> 0 Then Err.Clear: On Error GoTo 0: GoTo NextRow
         On Error GoTo 0
 
+        Dim newKey As String: newKey = CStr(CLng(CDbl(dFecha))) & "|" & sCod
+        If dExist.exists(newKey) Then GoTo NextRow
+
         shTC.Cells(r, 1).Value = dFecha
         shTC.Cells(r, 2).Value = sCod
         shTC.Cells(r, 3).Value = Trim$(CStr(data(i, 3)))
         shTC.Cells(r, 4).Value = data(i, 4)
         shTC.Cells(r, 5).Value = data(i, 5)
+        dExist.Add newKey, True
         r = r + 1
 NextRow:
     Next i
 
     If r > 2 Then
-        shTC.Range(shTC.Cells(2, 1), shTC.Cells(r - 1, 1)).NumberFormat = "dd/mm/yyyy"
+        Dim newLast As Long: newLast = r - 1
+        shTC.Range(shTC.Cells(2, 1), shTC.Cells(newLast, 1)).NumberFormat = "dd/mm/yyyy"
+
+        ' Actualizar o crear ListObject
+        Dim lo As ListObject
+        On Error Resume Next: Set lo = shTC.ListObjects(1): On Error GoTo 0
+        If lo Is Nothing Then
+            Set lo = shTC.ListObjects.Add(xlSrcRange, _
+                shTC.Range(shTC.Cells(1, 1), shTC.Cells(newLast, 5)), , xlYes)
+            On Error Resume Next: lo.Name = "SAB_TC": On Error GoTo 0
+            On Error Resume Next: lo.TableStyle = TABLE_STYLE: On Error GoTo 0
+        Else
+            On Error Resume Next
+            lo.Resize shTC.Range(shTC.Cells(1, 1), shTC.Cells(newLast, 5))
+            On Error GoTo 0
+        End If
         shTC.Columns(1).AutoFit
         shTC.Columns(2).AutoFit
-
-        Dim lo As ListObject
-        Set lo = shTC.ListObjects.Add(xlSrcRange, _
-            shTC.Range(shTC.Cells(1, 1), shTC.Cells(r - 1, 5)), , xlYes)
-        On Error Resume Next: lo.Name = "SAB_TC": On Error GoTo 0
-        On Error Resume Next: lo.TableStyle = TABLE_STYLE: On Error GoTo 0
     End If
 End Sub
