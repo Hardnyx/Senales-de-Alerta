@@ -590,7 +590,10 @@ NextAL:
     Dim iM_cta As Long, iM_fch As Long, iM_mto As Long, iM_ruc As Long
     iM_cta = GetColIdx(loMain, "Cuenta")
     iM_fch = GetColIdx(loMain, "Fecha")
-    iM_mto = GetColIdx(loMain, IIf(op = "DEP", "Dep" & Chr(243) & "sito", "Retiro"))
+    iM_mto = GetColIdx(loMain, "Monto en Soles")
+    If iM_mto = 0 Then
+        iM_mto = GetColIdx(loMain, IIf(op = "DEP", "Dep" & Chr(243) & "sito", "Retiro"))
+    End If
     iM_ruc = GetColIdx(loMain, "RUC/NIT")
 
     If iM_cta = 0 Or iM_fch = 0 Or iM_mto = 0 Then GoTo fin
