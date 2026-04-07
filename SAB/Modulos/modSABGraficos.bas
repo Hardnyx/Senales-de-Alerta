@@ -534,9 +534,12 @@ Public Sub BuildGraficosAlertasEnHoja( _
         If sKeyAL = "" Then GoTo NextAL
         Dim sDvAL  As Double: sDvAL = SafeDbl(arrAL(ai, iDv))
         Dim sPmAL  As Double: sPmAL = SafeDbl(arrAL(ai, iPm))
-        Dim sClAL  As String: sClAL = IIf(iCl > 0, Trim$(CStr(arrAL(ai, iCl))), "")
-        Dim sMoAL  As String: sMoAL = IIf(iMo > 0, Trim$(CStr(arrAL(ai, iMo))), "")
-        Dim sTPAL  As String: sTPAL = IIf(iTP > 0, UCase$(Trim$(CStr(arrAL(ai, iTP)))), "")
+        Dim sClAL As String
+        If iCl > 0 Then sClAL = Trim$(CStr(arrAL(ai, iCl))) Else sClAL = ""
+        Dim sMoAL As String
+        If iMo > 0 Then sMoAL = Trim$(CStr(arrAL(ai, iMo))) Else sMoAL = ""
+        Dim sTPAL As String
+        If iTP > 0 Then sTPAL = UCase$(Trim$(CStr(arrAL(ai, iTP)))) Else sTPAL = ""
 
         ' J si el tipo empieza por J o es PJ; todo lo demas es NAT
         Dim isJur As Boolean
