@@ -9,8 +9,7 @@ Private gStage          As String
 Private gSuppressEvents As Boolean
 
 ' ==========================
-' API de progreso (usada por modUF_PollProxy)
-' pct: 0 a 1
+' API de progreso
 ' ==========================
 Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
     On Error Resume Next
@@ -66,7 +65,7 @@ Public Sub PollTick()
 End Sub
 
 ' ==========================
-' Ciclo de vida del form
+' Ciclo de vida
 ' ==========================
 Private Sub UserForm_Initialize()
     Set gSABForm = Me
@@ -87,9 +86,7 @@ Private Sub UserForm_Initialize()
 End Sub
 
 Private Sub UserForm_Terminate()
-
     Set gSABForm = Nothing
-
     EndProgressHook
     On Error Resume Next
     modUF_PollProxy.Detach
@@ -125,7 +122,7 @@ Private Sub SetBusy(ByVal running As Boolean, Optional ByVal statusMsg As String
 End Sub
 
 ' ==========================
-' UI: crear o reutilizar controles
+' UI: construir controles
 ' ==========================
 Private Sub BuildOrRefreshUI()
     Me.caption = "SAB - Cargar Datos"
@@ -152,7 +149,7 @@ Private Sub BuildOrRefreshUI()
     Set cb = EnsureCombo(Me, "cbTipoCarga")
     cb.Left = x + 120: cb.top = y - 3: cb.width = 260
     cb.Style = fmStyleDropDownList
-    cb.ControlTipText = "Elige si cargar transacciones o clientes."
+    cb.ControlTipText = "Elige el tipo de dato a cargar."
     AttachCombo cb
     y = y + 28
 
@@ -182,13 +179,20 @@ Private Sub BuildOrRefreshUI()
     t.ControlTipText = "Ruta del archivo."
     Set b = EnsureButton(Me, "cmdExaminar")
     b.caption = "Examinar...": b.Left = x + 530: b.top = y - 5: b.width = 90
-    b.ControlTipText = "Buscar archivo."
     AttachButton b
     y = y + 34
 
+    ' Indicador de TC cargado (solo informativo, visible cuando hay TC en memoria)
+    Set l = EnsureLabel(Me, "lblTCEstado")
+    l.caption = ""
+    l.Left = x: l.top = y: l.width = 620
+    l.ForeColor = RGB(0, 128, 0)
+    l.Font.Italic = True
+    y = y + 20
+
     Set fr = EnsureFrame(Me, "fraProg")
     fr.caption = " Progreso"
-    fr.Left = x: fr.top = y: fr.width = 610: fr.height = 130
+    fr.Left = x: fr.top = y: fr.width = 630: fr.height = 130
     EnsureProgressControls fr
     y = y + fr.height + 10
 
@@ -196,14 +200,14 @@ Private Sub BuildOrRefreshUI()
     Dim bCancel As MSForms.CommandButton
 
     Set bOK = EnsureButton(Me, "cmdCargar")
-    bOK.caption = "Cargar": bOK.Left = x + 370: bOK.top = y: bOK.width = 120
+    bOK.caption = "Cargar": bOK.Left = x + 390: bOK.top = y: bOK.width = 120
     AttachButton bOK
 
     Set bCancel = EnsureButton(Me, "cmdCancelar")
-    bCancel.caption = "Cancelar": bCancel.Left = x + 500: bCancel.top = y: bCancel.width = 120
+    bCancel.caption = "Cancelar": bCancel.Left = x + 520: bCancel.top = y: bCancel.width = 120
     AttachButton bCancel
 
-    Me.width = 650
+    Me.width = 670
     Me.height = y + 90
 End Sub
 
@@ -256,6 +260,7 @@ Private Sub InitCombosDefaults()
             .AddItem "Seleccionar"
             .AddItem "Transacciones"
             .AddItem "Clientes"
+            .AddItem "Tipo de Cambio"
             .ListIndex = 0
         End With
     End If
@@ -263,11 +268,11 @@ Private Sub InitCombosDefaults()
     If HasControl("txtMeses") Then Me.Controls("txtMeses").Value = "6"
     If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Value = ""
 
-    ' Al inicio cbOperacion y txtMeses bloqueados
     If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
     If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
 
     SetOperacionOptions
+    RefreshTCEstado
 
     gSuppressEvents = False
 End Sub
@@ -285,6 +290,21 @@ Private Sub SetOperacionOptions()
     cbOp.AddItem "Cambio de Moneda - Solo Compra"
     cbOp.AddItem "Cambio de Moneda - Solo Venta"
     cbOp.ListIndex = 0
+End Sub
+
+Private Sub RefreshTCEstado()
+    If Not HasControl("lblTCEstado") Then Exit Sub
+    Dim lbl As MSForms.label
+    Set lbl = Me.Controls("lblTCEstado")
+    If Not gTCDict Is Nothing Then
+        If gTCDict.count > 0 Then
+            lbl.caption = "Tipo de cambio cargado en memoria (" & gTCDict.count & " registros)."
+            lbl.ForeColor = RGB(0, 128, 0)
+            Exit Sub
+        End If
+    End If
+    lbl.caption = "Sin tipo de cambio en memoria. Las alertas MC usaran montos originales."
+    lbl.ForeColor = RGB(160, 100, 0)
 End Sub
 
 Private Function IsPlaceholder(ByVal s As String) As Boolean
@@ -310,12 +330,14 @@ Private Sub EndProgressHook()
 End Sub
 
 ' ==========================
-' Acciones (usadas por CCtrlEvents)
+' Acciones
 ' ==========================
 Public Sub OnExaminar()
     Dim p As String
     p = PickFileXLS("Selecciona el archivo origen")
-    If Len(p) > 0 Then Me.Controls("txtArchivo").Value = p
+    If Len(p) > 0 Then
+        If HasControl("txtArchivo") Then Me.Controls("txtArchivo").Value = p
+    End If
 End Sub
 
 Public Sub OnCargar()
@@ -343,13 +365,32 @@ Public Sub OnCargar()
     tipoU = UCase$(Trim$(tipoCarga))
 
     If IsPlaceholder(tipoCarga) Then
-        MsgBox "Selecciona el tipo de dato a cargar (Transacciones o Clientes).", vbExclamation
+        MsgBox "Selecciona el tipo de dato a cargar.", vbExclamation
         Exit Sub
     End If
 
     SetBusy True, "Iniciando carga..."
     BeginProgressHook
     On Error GoTo fallo
+
+    ' ==========================
+    ' Caso: Tipo de Cambio
+    ' ==========================
+    If tipoU = "TIPO DE CAMBIO" Then
+        ProgressToCurrent 0.1, "Cargando tipo de cambio..."
+        Set gTCDict = modPQ_SAB_MC.LoadTipoCambioDict(ruta)
+        If gTCDict Is Nothing Or gTCDict.count = 0 Then
+            MsgBox "No se encontraron datos en la hoja TipoCambio del archivo seleccionado." & _
+                   vbCrLf & ruta, vbExclamation, "Tipo de Cambio"
+            GoTo salir
+        End If
+        ProgressToCurrent 1, "Tipo de cambio cargado: " & gTCDict.count & " registros."
+        EndProgressHook
+        SetBusy False, "Tipo de cambio listo."
+        RefreshTCEstado
+        ' No cerrar: el usuario puede ahora cargar transacciones en la misma sesion
+        Exit Sub
+    End If
 
     ' ==========================
     ' Caso: Clientes
@@ -387,6 +428,16 @@ Public Sub OnCargar()
             Else
                 mcMode = "AMBOS"
             End If
+
+            ' Advertir si no hay TC cargado y hay monedas extranjeras posibles
+            If gTCDict Is Nothing Or gTCDict.count = 0 Then
+                If MsgBox("No hay tipo de cambio cargado en memoria." & vbCrLf & _
+                          "Las operaciones en moneda extranjera no tendran monto en soles." & vbCrLf & vbCrLf & _
+                          "Continuar de todos modos?", vbQuestion + vbYesNo, "Tipo de Cambio") = vbNo Then
+                    GoTo salir
+                End If
+            End If
+
             Application.Run "CrearQuerySAB_MC", ruta, mesesSel, mcMode, True
 
         ' --- Cambio de Moneda ---
@@ -449,19 +500,24 @@ Public Sub OnComboChanged(ByVal Name As String)
         If HasControl("cbTipoCarga") Then v = CStr(Me.Controls("cbTipoCarga").Value)
         tipo = UCase$(Trim$(v))
 
-        If tipo = "TRANSACCIONES" Then
-            If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = True
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = True
-        ElseIf tipo = "CLIENTES" Then
-            If HasControl("cbOperacion") Then
-                Me.Controls("cbOperacion").Enabled = False
-                Me.Controls("cbOperacion").Value = "Seleccionar"
-            End If
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
-        Else
-            If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
-            If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
-        End If
+        Select Case tipo
+            Case "TRANSACCIONES"
+                If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = True
+                If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = True
+                If HasControl("lblOperacion") Then Me.Controls("lblOperacion").Enabled = True
+                If HasControl("lblMeses") Then Me.Controls("lblMeses").Enabled = True
+            Case "CLIENTES", "TIPO DE CAMBIO"
+                If HasControl("cbOperacion") Then
+                    Me.Controls("cbOperacion").Enabled = False
+                    Me.Controls("cbOperacion").Value = "Seleccionar"
+                End If
+                If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
+                If HasControl("lblOperacion") Then Me.Controls("lblOperacion").Enabled = False
+                If HasControl("lblMeses") Then Me.Controls("lblMeses").Enabled = False
+            Case Else
+                If HasControl("cbOperacion") Then Me.Controls("cbOperacion").Enabled = False
+                If HasControl("txtMeses") Then Me.Controls("txtMeses").Enabled = False
+        End Select
 
         SetStatusOnly 0, "Tipo de dato: " & v
         ClearLog
@@ -509,7 +565,7 @@ Private Sub SetStatusOnly(ByVal pct As Double, ByVal msg As String)
 End Sub
 
 ' ==========================
-' Log de progreso (UX)
+' Log de progreso
 ' ==========================
 Private Sub ClearLog()
     Dim fr As MSForms.Frame

@@ -138,7 +138,7 @@ Private Function EnsureHelperSheet(ByVal wb As Workbook, ByVal shName As String)
     Else
         wsh.Cells.Clear
     End If
-    wsh.Visible = xlSheetVeryHidden
+    wsh.visible = xlSheetVeryHidden
     Set EnsureHelperSheet = wsh
 End Function
 
@@ -443,12 +443,12 @@ Private Function AddAlertTextBox( _
         .TextRange.ParagraphFormat.Alignment = msoAlignCenter
     End With
     With shp.line
-        .Visible = msoTrue
+        .visible = msoTrue
         .ForeColor.RGB = RGB(255, 199, 206)
         .Weight = 1.5
     End With
     shp.Fill.ForeColor.RGB = RGB(255, 235, 238)
-    shp.Fill.Visible = msoTrue
+    shp.Fill.visible = msoTrue
 
     ' Autofit altura solo si no se especifico una altura fija
     If fixedHeight <= 0 Then
@@ -491,7 +491,8 @@ Public Sub BuildGraficosAlertasEnHoja( _
     If op <> "DEP" And op <> "RET" Then op = "DEP"
 
     If Not LOHasColumn(loAL, "DESVIACION_MEDIA_%") Then Exit Sub
-    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") Then Exit Sub
+    If Not LOHasColumn(loAL, "PROMEDIO_MONTOS") And _
+       Not LOHasColumn(loAL, "PROMEDIO_MONTOS_SOLES") Then Exit Sub
 
     Dim ws As Worksheet: Set ws = loAL.parent
     Dim wb As Workbook:  Set wb = ws.parent
@@ -507,7 +508,8 @@ Public Sub BuildGraficosAlertasEnHoja( _
     If iKey = 0 Then iKey = GetColIdx(loAL, "Cuenta")
     If iKey = 0 Then iKey = 1  ' fallback a primera columna
     iDv = GetColIdx(loAL, "DESVIACION_MEDIA_%")
-    iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
+    iPm = GetColIdx(loAL, "PROMEDIO_MONTOS_SOLES")
+    If iPm = 0 Then iPm = GetColIdx(loAL, "PROMEDIO_MONTOS")
     iCl = GetColIdx(loAL, "CLASE")
     iMo = GetColIdx(loAL, "MONEDA")
     iTP = GetColIdx(loAL, "TIPO_PERSONA")
@@ -1202,8 +1204,8 @@ NextJUR_CM:
                 .TextRange.ParagraphFormat.Alignment = msoAlignLeft
             End With
             shpN.Fill.ForeColor.RGB = RGB(255, 255, 255)
-            shpN.Fill.Visible = msoTrue
-            shpN.line.Visible = msoTrue
+            shpN.Fill.visible = msoTrue
+            shpN.line.visible = msoTrue
             shpN.line.ForeColor.RGB = RGB(200, 200, 200)
             shpN.line.Weight = 0.75
         End If
@@ -1228,8 +1230,8 @@ NextJUR_CM:
                 .TextRange.ParagraphFormat.Alignment = msoAlignLeft
             End With
             shpJ.Fill.ForeColor.RGB = RGB(255, 255, 255)
-            shpJ.Fill.Visible = msoTrue
-            shpJ.line.Visible = msoTrue
+            shpJ.Fill.visible = msoTrue
+            shpJ.line.visible = msoTrue
             shpJ.line.ForeColor.RGB = RGB(200, 200, 200)
             shpJ.line.Weight = 0.75
         End If
@@ -1370,5 +1372,3 @@ Private Function NormPersona(ByVal s As String) As String
     If InStr(t, "JUR") > 0 Or t = "PJ" Then NormPersona = "JURIDICA": Exit Function
     NormPersona = t
 End Function
-
-
