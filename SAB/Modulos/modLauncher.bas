@@ -67,7 +67,7 @@ Public Sub ShowFormModeless()
 
     modUF_PollProxy.Attach f
 
-    If f.Visible Then
+    If f.visible Then
         f.Hide
         DoEvents
     End If
@@ -132,4 +132,3 @@ Public Sub OnFormTerminated()
     modUF_PollProxy.Detach
     On Error GoTo 0
 End Sub
-

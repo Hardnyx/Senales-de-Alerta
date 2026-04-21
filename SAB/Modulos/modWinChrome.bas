@@ -51,11 +51,11 @@ Public Sub EnableMinimizeBox(ByVal uf As Object)
     If w.h = 0 Then Exit Sub
 
 #If VBA7 Then
-    Dim st As LongPtr
-    st = GetWindowLongPtr(w.h, GWL_STYLE)
-    If st = 0 Then Exit Sub
-    st = st Or WS_SYSMENU Or WS_MINIMIZEBOX
-    SetWindowLongPtr w.h, GWL_STYLE, st
+    Dim sT As LongPtr
+    sT = GetWindowLongPtr(w.h, GWL_STYLE)
+    If sT = 0 Then Exit Sub
+    sT = sT Or WS_SYSMENU Or WS_MINIMIZEBOX
+    SetWindowLongPtr w.h, GWL_STYLE, sT
 #Else
     Dim st32 As Long
     st32 = GetWindowLong(w.h, GWL_STYLE)
@@ -67,5 +67,3 @@ Public Sub EnableMinimizeBox(ByVal uf As Object)
     DrawMenuBar w.h
     On Error GoTo 0
 End Sub
-
-

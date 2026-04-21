@@ -946,7 +946,8 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
     Dim dMeta    As Object: Set dMeta = CreateObject("Scripting.Dictionary")
     Dim dTipo    As Object: Set dTipo = CreateObject("Scripting.Dictionary")
     Dim dCuentas As Object: Set dCuentas = CreateObject("Scripting.Dictionary")
-
+    Dim dNOpReal As Object: Set dNOpReal = CreateObject("Scripting.Dictionary")
+    
     Dim vM As Variant, dM As Double
     Dim vC As Variant, sCuenta As String, sKey As String
     Dim vF As Variant, dF As Date, lF As Long
@@ -995,6 +996,9 @@ Private Function BuildAlertasVBA(ByVal loMain As ListObject, _
             dDay.Add dayKey, dM
         End If
 
+        If Not dNOpReal.exists(sKey) Then dNOpReal.Add sKey, 0&
+        dNOpReal(sKey) = CLng(dNOpReal(sKey)) + 1
+
         Dim sCuentaKey As String: sCuentaKey = sKey & "|" & sCuenta
         If Not dCuentas.exists(sCuentaKey) Then dCuentas.Add sCuentaKey, sCuenta
 
@@ -1040,7 +1044,7 @@ SkipAl:
 
     ' 10 columnas: TIPO_PERSONA, RUC/NIT, CUENTAS, CLASE,
     '              SUMA, NUM_OP, PROMEDIO, ULTIMA, DESV, NIVEL
-    ReDim outArr(1 To nDocs, 1 To 10) As Variant
+    ReDim outArr(1 To nDocs, 1 To 11) As Variant
     Dim r As Long: r = 0
     Dim sDoc2 As Variant, suma As Double, nOp As Long
     Dim prom As Double, ultima As Double
@@ -1088,11 +1092,12 @@ SkipAl:
         outArr(r, 3) = sCuentasList
         outArr(r, 4) = IIf(dMeta.exists(CStr(sDoc2)), CStr(dMeta(CStr(sDoc2))), "")
         outArr(r, 5) = Round(suma, 2)
-        outArr(r, 6) = nOp
-        outArr(r, 7) = Round(prom, 2)
-        outArr(r, 8) = Round(ultima, 2)
-        outArr(r, 9) = desv
-        outArr(r, 10) = nivel
+        outArr(r, 6) = IIf(dNOpReal.exists(CStr(sDoc2)), CLng(dNOpReal(CStr(sDoc2))), nOp)
+        outArr(r, 7) = nOp    ' nOp = distinct days (buckets de dDay)
+        outArr(r, 8) = Round(prom, 2)
+        outArr(r, 9) = Round(ultima, 2)
+        outArr(r, 10) = desv
+        outArr(r, 11) = nivel
     Next sDoc2
 
     ClearSheetButKeepName shAl
@@ -1100,19 +1105,19 @@ SkipAl:
     Dim keyHdr As String: keyHdr = IIf(usandoDoc, "RUC/NIT", "Cuenta")
     Dim hdrs As Variant
     hdrs = Array("TIPO_PERSONA", keyHdr, "CUENTAS", "CLASE", _
-                 "SUMA_MONTOS_SOLES", "NUM_OPERACIONES", "PROMEDIO_MONTOS_SOLES", _
+                 "SUMA_MONTOS_SOLES", "NUM_OPERACIONES", "NUM_DIAS", "PROMEDIO_MONTOS_SOLES", _
                  "ULTIMA_OPERACION_SOLES", "DESVIACION_MEDIA_%", "NIVEL_RIESGO")
     Dim j As Long
-    For j = 0 To 9: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
+    For j = 0 To 10: shAl.Cells(1, j + 1).Value = hdrs(j): Next j
 
     ' Pre-formatear columna RUC/NIT (col 2) como texto antes de escribir
     shAl.Range(shAl.Cells(2, 2), shAl.Cells(nDocs + 1, 2)).NumberFormat = "@"
 
-    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 10)).Value = outArr
+    shAl.Range(shAl.Cells(2, 1), shAl.Cells(nDocs + 1, 11)).Value = outArr
 
     Dim loAL As ListObject
     Set loAL = shAl.ListObjects.Add(xlSrcRange, _
-                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 10)), , xlYes)
+                   shAl.Range(shAl.Cells(1, 1), shAl.Cells(nDocs + 1, 11)), , xlYes)
     On Error Resume Next: loAL.Name = loAlName: On Error GoTo 0
     On Error Resume Next: loAL.TableStyle = TABLE_STYLE: On Error GoTo 0
 

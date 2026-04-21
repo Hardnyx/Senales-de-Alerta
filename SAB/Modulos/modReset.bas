@@ -280,7 +280,7 @@ Public Sub ResetProceso()
             errNum = 0
             errDesc = vbNullString
             On Error Resume Next
-            ws.Visible = xlSheetVisible
+            ws.visible = xlSheetVisible
             ws.Delete
             errNum = Err.Number
             errDesc = Err.Description
@@ -313,5 +313,3 @@ Public Sub ResetProceso()
         MsgBox resumen, vbExclamation, "Reset"
     End If
 End Sub
-
-

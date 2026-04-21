@@ -104,4 +104,3 @@ Public Sub ProgressToCurrent(ByVal pct As Double, ByVal msg As String)
 
     On Error GoTo 0
 End Sub
-

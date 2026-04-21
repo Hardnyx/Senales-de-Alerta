@@ -398,5 +398,3 @@ Public Sub UF_UnhookProgress()
     modUF_PollProxy.Detach
     On Error GoTo 0
 End Sub
-
-

@@ -688,3 +688,4 @@ Private Function HasControl(ByVal Name As String) As Boolean
     Err.Clear
     On Error GoTo 0
 End Function
+
