@@ -328,6 +328,114 @@ NextTC:
     End If
 End Function
 
+Private Function NombreToCodigoTC(ByVal nombre As String) As String
+    Select Case UCase$(Trim$(nombre))
+        Case "DÓLAR DE N.A.", "DOLAR DE N.A.", "US DOLLAR", "USD": NombreToCodigoTC = "USD"
+        Case "EURO", "EUR":                                          NombreToCodigoTC = "EUR"
+        Case "LIBRA ESTERLINA", "GBP":                              NombreToCodigoTC = "GBP"
+        Case "YEN JAPONÉS", "YEN JAPONES", "JPY":                   NombreToCodigoTC = "JPY"
+        Case Else
+            ' Tomar las primeras 3 letras como fallback
+            Dim t As String: t = Trim$(nombre)
+            If Len(t) >= 3 Then NombreToCodigoTC = UCase$(Left$(t, 3)) Else NombreToCodigoTC = t
+    End Select
+End Function
+
+Public Function LoadTipoCambioSBS(ByVal rutaSBS As String, _
+                                   Optional ByVal crearHoja As Boolean = True) As Object
+    Dim d As Object: Set d = CreateObject("Scripting.Dictionary")
+    Set LoadTipoCambioSBS = d
+    If Len(Trim$(rutaSBS)) = 0 Then Exit Function
+    If Dir(rutaSBS, vbNormal) = "" Then Exit Function
+
+    Dim wb As Workbook
+    On Error Resume Next
+    Application.ScreenUpdating = False
+    Set wb = Workbooks.Open(rutaSBS, ReadOnly:=True, UpdateLinks:=False)
+    Application.ScreenUpdating = True
+    On Error GoTo 0
+    If wb Is Nothing Then Exit Function
+
+    ' El archivo SBS tiene una sola hoja con nombre variable (ej: "reporte (2)")
+    Dim ws As Worksheet: Set ws = wb.Worksheets(1)
+    Dim nRows As Long: nRows = ws.Cells(ws.rows.count, 1).End(xlUp).Row
+    If nRows < 2 Then wb.Close False: Exit Function
+
+    Dim data As Variant: data = ws.Range(ws.Cells(1, 1), ws.Cells(nRows, 4)).Value2
+
+    ' Detectar columnas por encabezado
+    Dim colFecha As Long, colMoneda As Long, colComp As Long, colVenta As Long
+    Dim j As Long
+    For j = 1 To 4
+        Select Case UCase$(Trim$(CStr(data(1, j))))
+            Case "FECHA":   colFecha = j
+            Case "MONEDA":  colMoneda = j
+            Case "COMPRA":  colComp = j
+            Case "VENTA":   colVenta = j
+        End Select
+    Next j
+    If colFecha = 0 Or colMoneda = 0 Or colComp = 0 Then
+        wb.Close False: Exit Function
+    End If
+
+    Dim i As Long
+    Dim minFecha As Date: minFecha = #12/31/9999#
+    Dim maxFecha As Date: maxFecha = #1/1/1900#
+    Dim gotAny As Boolean
+
+    ' Construir array para CrearHojaTipoCambio (5 cols: Fecha,Codigo,Moneda,Compra,Venta)
+    ReDim dataOut(1 To nRows, 1 To 5) As Variant
+    dataOut(1, 1) = "FECHA": dataOut(1, 2) = "CODIGO"
+    dataOut(1, 3) = "MONEDA": dataOut(1, 4) = "Compra": dataOut(1, 5) = "Venta"
+    Dim rOut As Long: rOut = 1
+
+    For i = 2 To nRows
+        Dim vF As Variant: vF = data(i, colFecha)
+        If IsEmpty(vF) Or IsNull(vF) Or IsError(vF) Then GoTo NextSBS
+
+        Dim dF As Date
+        On Error Resume Next: dF = CDate(vF): On Error GoTo 0
+        If dF = 0 Or IsError(dF) Then GoTo NextSBS
+
+        Dim sNom As String: sNom = Trim$(CStr(data(i, colMoneda)))
+        Dim sCod As String: sCod = NombreToCodigoTC(sNom)
+        If Len(sCod) = 0 Or sCod = "PEN" Then GoTo NextSBS
+
+        Dim vC As Variant: vC = data(i, colComp)
+        Dim vV As Variant: vV = IIf(colVenta > 0, data(i, colVenta), Empty)
+
+        Dim serial As String: serial = CStr(CLng(CDbl(dF)))
+        Dim keyC As String: keyC = "COMP|" & serial & "|" & sCod
+        Dim keyV As String: keyV = "VENT|" & serial & "|" & sCod
+
+        If Not IsEmpty(vC) And Not d.exists(keyC) Then d.Add keyC, CDbl(vC)
+        If Not IsEmpty(vV) And Not d.exists(keyV) Then d.Add keyV, CDbl(vV)
+
+        rOut = rOut + 1
+        dataOut(rOut, 1) = dF
+        dataOut(rOut, 2) = sCod
+        dataOut(rOut, 3) = sNom
+        dataOut(rOut, 4) = IIf(IsEmpty(vC), Empty, CDbl(vC))
+        dataOut(rOut, 5) = IIf(IsEmpty(vV), Empty, CDbl(vV))
+
+        If dF < minFecha Then minFecha = dF
+        If dF > maxFecha Then maxFecha = dF
+        gotAny = True
+NextSBS:
+    Next i
+
+    wb.Close False
+
+    If crearHoja And gotAny And rOut > 1 Then
+        Dim sufTC As String
+        sufTC = MesAbrevES(minFecha) & "_" & Year(minFecha) & "_" & _
+                MesAbrevES(maxFecha) & "_" & Year(maxFecha)
+        CrearHojaTipoCambio dataOut, rOut, "SAB_TC_" & sufTC
+    End If
+
+    Set LoadTipoCambioSBS = d
+End Function
+
 '======================
 ' TryRebuildTCDictFromSheet
 ' Intenta reconstruir gTCDict desde la hoja SAB_TC_* del workbook.

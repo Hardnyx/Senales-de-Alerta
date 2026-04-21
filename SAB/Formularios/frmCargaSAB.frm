@@ -384,9 +384,17 @@ Public Sub OnCargar()
     ' ==========================
     If tipoU = "TIPO DE CAMBIO" Then
         ProgressToCurrent 0.1, "Cargando tipo de cambio..."
-        Set gTCDict = modPQ_SAB_MC.LoadTipoCambioDict(ruta)
+
+        ' Detectar formato: .xls = descarga directa SBS, .xlsx/.xlsm = script Python
+        Dim extTC As String: extTC = LCase$(Right$(Trim$(ruta), 4))
+        If extTC = ".xls" Then
+            Set gTCDict = modPQ_SAB_MC.LoadTipoCambioSBS(ruta)
+        Else
+            Set gTCDict = modPQ_SAB_MC.LoadTipoCambioDict(ruta)
+        End If
+
         If gTCDict Is Nothing Or gTCDict.count = 0 Then
-            MsgBox "No se encontraron datos en la hoja TipoCambio del archivo seleccionado." & _
+            MsgBox "No se encontraron datos de tipo de cambio en el archivo seleccionado." & _
                    vbCrLf & ruta, vbExclamation, "Tipo de Cambio"
             GoTo salir
         End If
@@ -394,7 +402,6 @@ Public Sub OnCargar()
         EndProgressHook
         SetBusy False, "Tipo de cambio listo."
         RefreshTCEstado
-        ' No cerrar: el usuario puede ahora cargar transacciones en la misma sesion
         Exit Sub
     End If
 
@@ -435,7 +442,6 @@ Public Sub OnCargar()
                 mcMode = "AMBOS"
             End If
 
-            ' Advertir si no hay TC cargado y hay monedas extranjeras posibles
             If gTCDict Is Nothing Or gTCDict.count = 0 Then
                 If MsgBox("No hay tipo de cambio cargado en memoria." & vbCrLf & _
                           "Las operaciones en moneda extranjera no tendran monto en soles." & vbCrLf & vbCrLf & _
@@ -688,4 +694,3 @@ Private Function HasControl(ByVal Name As String) As Boolean
     Err.Clear
     On Error GoTo 0
 End Function
-
